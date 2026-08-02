@@ -1,0 +1,4 @@
+interface:
+  display_name: "Curate Simo Knowledge"
+  short_description: "Maintain governed Simo knowledge"
+  default_prompt: "Use $curate-simo-knowledge to create or update a sourced, compact OKF concept in Simo."

@@ -1,0 +1,11 @@
+min_version: 2.1.10
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: staged whitespace
+      run: git diff --cached --check
+    - name: documentation
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache TIKTOKEN_CACHE_DIR=.cache/tiktoken uv run --frozen python scripts/validate_docs.py
+    - name: knowledge tests
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache TIKTOKEN_CACHE_DIR=.cache/tiktoken uv run --frozen python -m unittest discover -s scripts/knowledge/tests -v

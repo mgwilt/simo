@@ -1,0 +1,4 @@
+interface:
+  display_name: "Track Simo Work"
+  short_description: "Track significant Simo work"
+  default_prompt: "Use $track-simo-work to create or resume a bounded Simo Work Plan and carry it through evidence-backed closure."

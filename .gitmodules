@@ -1,0 +1,9 @@
+[submodule "vendor/flecs"]
+	path = vendor/flecs
+	url = https://github.com/SanderMertens/flecs.git
+[submodule "vendor/pipecat"]
+	path = vendor/pipecat
+	url = https://github.com/pipecat-ai/pipecat.git
+[submodule "vendor/knowledge-catalog"]
+	path = vendor/knowledge-catalog
+	url = https://github.com/GoogleCloudPlatform/knowledge-catalog.git
