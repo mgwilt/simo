@@ -4,8 +4,8 @@ title: Simo documentation and work-management architecture
 description: Proposes a compact OKF 0.2 profile for durable knowledge, bounded work coordination, agent handoffs, and runtime evidence.
 tags: [governance, okf, work-management, agents, realtime, flecs]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-02T23:04:24Z }
-verified: { by: codex/gpt-5.6-sol, at: 2026-08-02T23:04:24Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-02T23:53:21Z }
+verified: { by: codex/gpt-5.6-sol, at: 2026-08-02T23:53:21Z }
 stale_after: 2026-11-02
 sources:
   - id: okf-spec
@@ -51,7 +51,7 @@ simo:
 
 ## Status and evidence boundary
 
-This is a proposal, not an implemented runtime contract. Simo currently has no first-party source, tests, build configuration, or runtime; its only tracked content is the staged submodule foundation. The pinned dependencies establish available upstream behavior, while the founding task `019fc48e-ba33-7053-aa5c-3c41c53ebf37` supplies design intent.
+This remains the governing documentation proposal, not a runtime contract. Simo now has an implemented first vertical slice at revision `37ff732`; [the semantic context spine](../architecture/semantic-context-spine.md) defines the promoted runtime ownership and evidence boundary. The pinned dependencies establish available upstream behavior, while the founding task `019fc48e-ba33-7053-aa5c-3c41c53ebf37` supplies broader design intent.
 
 The intended system boundary is:
 
@@ -60,7 +60,7 @@ The intended system boundary is:
 - An adapter turns selected Pipecat observations into semantic events; a normal pipeline processor requests an immutable context snapshot before inference.
 - OKF owns durable, reviewable knowledge. It does not prescribe a runtime or replace domain schemas.[^okf-spec]
 
-No document, Markdown link, Work Plan state, or evidence packet is Flecs runtime state. First-party code, configuration, schemas, tests, and observed execution become operational authority once they exist. Documents explain intent, ownership, decisions, and observed evidence, and must link back to that authority.
+No document, Markdown link, Work Plan state, or evidence packet is Flecs runtime state. First-party code, configuration, schemas, tests, and observed execution are operational authority for the behavior they actually establish. Documents explain intent, ownership, decisions, and observed evidence, and must link back to that authority.
 
 ## Arcology findings: transfer selectively
 

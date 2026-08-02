@@ -17,7 +17,7 @@ simo:
 
 - Base revision: `edc3b2acc33707dfe5277f31166f14d7659bf4e1`
 - Initial state: clean working tree; pinned Flecs, Pipecat, and knowledge-catalog submodules present.
-- Completed: `T-001` through `T-004`; native Flecs engine, C ABI, Python wrapper, bounded Pipecat observer, Gepard TTS adapter, runtime lock, and tests pass locally.
-- Active: `T-005` architecture/interface promotion and evidence collection.
+- Completed: `T-001` through `T-005`; feature revision `37ff732` passed immutable verification and the supported architecture/interface claims are promoted as `DOC-0002` and `DOC-0003`.
+- Active: `T-006` closure review.
 - Blocker: none.
-- Next action: commit the feature slice, verify that immutable revision, and promote only the claims supported by its evidence.
+- Next action: validate and commit the promoted knowledge, verify that revision, and close or checkpoint truthfully.

@@ -19,11 +19,11 @@ simo:
     priority: p1
     accountable: codex/gpt-5.6-sol
     created_at: 2026-08-02T23:35:00Z
-    updated_at: 2026-08-02T23:51:00Z
+    updated_at: 2026-08-02T23:53:21Z
     depends_on: []
-    knowledge_refs: [governance/DOC-0001-documentation-and-work-management]
+    knowledge_refs: [governance/DOC-0001-documentation-and-work-management, architecture/semantic-context-spine, interfaces/gepard-tts]
     write_paths: [.gitignore, CMakeLists.txt, include/simo, src, python/simo, tests, docs/architecture, docs/interfaces, docs/work/W-20260802-semantic-context-spine, docs/work/index.md, pyproject.toml, uv.lock]
-    next_action: Promote the implemented architecture and verify the immutable feature revision.
+    next_action: Validate and commit the promoted knowledge, then review closure on the immutable documentation revision.
     blocker: null
 ---
 # Implement the semantic context spine
