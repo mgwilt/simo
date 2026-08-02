@@ -8,5 +8,13 @@ dependencies = [
     "tiktoken>=0.13,<1",
 ]
 
+[project.optional-dependencies]
+runtime = [
+    "pipecat-ai",
+]
+
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+pipecat-ai = { path = "vendor/pipecat" }

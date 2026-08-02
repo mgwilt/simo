@@ -1,4 +1,52 @@
-.cache/
-.venv/
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
 __pycache__/
 *.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# Repository-local caches
+.cache/
+.uv-cache/
+
+# Native builds
+.build/
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+Testing/
+cmake_install.cmake
+compile_commands.json
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.dSYM/
+
+# Local runtime configuration and generated artifacts
+.env
+.env.*
+!.env.example
+.models/
+.artifacts/
+outputs/
