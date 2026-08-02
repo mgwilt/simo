@@ -22,4 +22,4 @@ simo:
 | T-003 | Implement Gepard HTTP TTS service | - | done | codex/gpt-5.6-sol |
 | T-004 | Add deterministic native and Python tests | T-001, T-002, T-003 | done | codex/gpt-5.6-sol |
 | T-005 | Promote architecture/interfaces and collect evidence | T-004 | done | codex/gpt-5.6-sol |
-| T-006 | Independently review acceptance and close or checkpoint | T-005 | active | codex/gpt-5.6-sol |
+| T-006 | Independently review acceptance and close or checkpoint | T-005 | done | codex/gpt-5.6-sol |

@@ -17,7 +17,7 @@ simo:
 
 - Base revision: `edc3b2acc33707dfe5277f31166f14d7659bf4e1`
 - Initial state: clean working tree; pinned Flecs, Pipecat, and knowledge-catalog submodules present.
-- Completed: `T-001` through `T-005`; feature revision `37ff732` passed immutable verification and the supported architecture/interface claims are promoted as `DOC-0002` and `DOC-0003`.
-- Active: `T-006` closure review.
+- Completed: `T-001` through `T-006`; feature revision `37ff732` and documentation revision `4ae682c` passed their proportional immutable checks; `DOC-0002` and `DOC-0003` are promoted.
+- Active: none; work is terminal and the mutation lease is released.
 - Blocker: none.
-- Next action: validate and commit the promoted knowledge, verify that revision, and close or checkpoint truthfully.
+- Next action: create a successor Work Plan for the next executable vertical slice.
