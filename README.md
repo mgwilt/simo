@@ -46,6 +46,8 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_CONTEXT_MAX_CHARS` | `8000` |
 | `SIMO_CONTEXT_MAX_AGE_MS` | `1000` |
 | `SIMO_TTS_MODEL` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` |
+| `SIMO_TTS_VOICE` | `Aiden` |
+| `SIMO_TTS_STREAMING_INTERVAL_S` | `0.32` |
 | `SIMO_STT_MODEL` | `mlx-community/parakeet-tdt-0.6b-v3` |
 | `SIMO_TEXT_MODEL` | `mlx-community/Qwen3.5-4B-4bit` |
 

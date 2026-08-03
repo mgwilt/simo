@@ -22,6 +22,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.repository / ".models", config.models_dir)
         self.assertEqual(8_000, config.context_max_chars)
         self.assertEqual(1_000, config.context_max_age_ms)
+        self.assertEqual("Aiden", config.tts_voice)
+        self.assertEqual(0.32, config.tts_streaming_interval_s)
 
     def test_environment_overrides_are_typed_once(self) -> None:
         config = RuntimeConfig.from_environment(
@@ -34,6 +36,8 @@ class RuntimeConfigTests(unittest.TestCase):
                 "SIMO_CONTEXT_MAX_CHARS": "500",
                 "SIMO_CONTEXT_MAX_AGE_MS": "250",
                 "SIMO_TTS_MODEL": "example/tts",
+                "SIMO_TTS_VOICE": "Ryan",
+                "SIMO_TTS_STREAMING_INTERVAL_S": "0.5",
             }
         )
         self.assertEqual(RunMode.LIVE, config.mode)
@@ -43,12 +47,24 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(250, config.context_max_age_ms)
         self.assertEqual(Path("/tmp/libsimo-test.dylib"), config.core_library)
         self.assertEqual(Path("/tmp/simo-test-models/tts"), config.tts.local_path)
+        self.assertEqual("Ryan", config.tts_voice)
+        self.assertEqual(0.5, config.tts_streaming_interval_s)
 
     def test_invalid_capacity_fails_before_runtime_start(self) -> None:
         for value in ("0", "-1", "many"):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "positive integer"):
                     RuntimeConfig.from_environment({"SIMO_QUEUE_CAPACITY": value})
+
+    def test_invalid_tts_settings_fail_before_runtime_start(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must not be empty"):
+            RuntimeConfig.from_environment({"SIMO_TTS_VOICE": "  "})
+        for value in ("0", "-0.1", "soon"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "positive number"):
+                    RuntimeConfig.from_environment(
+                        {"SIMO_TTS_STREAMING_INTERVAL_S": value}
+                    )
 
 
 if __name__ == "__main__":

@@ -38,6 +38,8 @@ class RuntimeConfig:
     max_segments: int
     context_max_chars: int
     context_max_age_ms: int
+    tts_voice: str
+    tts_streaming_interval_s: float
     tts: ModelConfig
     stt: ModelConfig
     text: ModelConfig
@@ -57,8 +59,14 @@ class RuntimeConfig:
         queue_capacity = _positive_integer(values, "SIMO_QUEUE_CAPACITY", 256)
         max_segments = _positive_integer(values, "SIMO_MAX_SEGMENTS", 64)
         context_max_chars = _positive_integer(values, "SIMO_CONTEXT_MAX_CHARS", 8_000)
-        context_max_age_ms = _positive_integer(
-            values, "SIMO_CONTEXT_MAX_AGE_MS", 1_000
+        context_max_age_ms = _positive_integer(values, "SIMO_CONTEXT_MAX_AGE_MS", 1_000)
+        tts_voice = values.get("SIMO_TTS_VOICE", "Aiden").strip()
+        if not tts_voice:
+            raise ValueError("SIMO_TTS_VOICE must not be empty")
+        tts_streaming_interval_s = _positive_float(
+            values,
+            "SIMO_TTS_STREAMING_INTERVAL_S",
+            0.32,
         )
 
         def model(env_name: str, default_id: str) -> ModelConfig:
@@ -77,6 +85,8 @@ class RuntimeConfig:
             max_segments=max_segments,
             context_max_chars=context_max_chars,
             context_max_age_ms=context_max_age_ms,
+            tts_voice=tts_voice,
+            tts_streaming_interval_s=tts_streaming_interval_s,
             tts=model("SIMO_TTS_MODEL", QWEN_TTS_MODEL),
             stt=model("SIMO_STT_MODEL", PARAKEET_STT_MODEL),
             text=model("SIMO_TEXT_MODEL", QWEN_TEXT_MODEL),
@@ -91,4 +101,15 @@ def _positive_integer(values: Mapping[str, str], name: str, default: int) -> int
         raise ValueError(f"{name} must be a positive integer") from error
     if value <= 0:
         raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def _positive_float(values: Mapping[str, str], name: str, default: float) -> float:
+    raw = values.get(name, str(default))
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be a positive number") from error
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive number")
     return value
