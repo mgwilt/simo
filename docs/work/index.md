@@ -2,7 +2,7 @@
 
 ## Active
 
-No Work Plan is active while the realtime foundation closes and its successor is prepared.
+- [Conversational identities and improvement lab](W-20260802-conversational-identities/) - Implements persisted aliases, reviewable multi-turn history, private learning, LiveKit pairing, and bounded autonomous tuning.
 
 ## Archive
 
