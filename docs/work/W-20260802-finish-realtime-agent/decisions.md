@@ -4,7 +4,7 @@ title: Finish Simo decisions
 description: Records locked product boundaries and evidence-gated runtime choices.
 tags: [work, decisions, product, inference]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:07:39Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
 sources:
   - id: mlx-audio
     resource: https://github.com/Blaizzy/mlx-audio
@@ -74,6 +74,10 @@ Pipecat observers may run ahead of ordered frame processing. They therefore enqu
 ## D-009: Operational events exclude content by construction
 
 Simo emits fixed-schema aggregate lifecycle, queue, error-count, and timing events. The event API does not accept transcript, prompt, response, audio, model-output, or exception-message fields. User-requested command results remain a separate output channel and may contain explicitly supplied synthetic content.
+
+## D-010: Start local turn detection with a replaceable bounded energy gate
+
+The first macOS live path uses deterministic normalized-RMS start/stop detection with typed thresholds, pre-roll, and a maximum utterance duration. It emits Pipecat interruption frames but does not claim semantic turn detection, echo cancellation, speaker identity, or noise robustness. The boundary remains replaceable without changing STT, Flecs, or inference contracts.
 
 [^mlx-audio]: MLX-Audio repository and examples, checked 2026-08-02: Apple Silicon speech generation and streaming interfaces.
 [^qwen-tts-mlx]: Qwen3-TTS 0.6B CustomVoice 6-bit MLX model card, checked 2026-08-02: MLX-Audio conversion, model size, license metadata, and built-in voices.

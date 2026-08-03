@@ -6,12 +6,13 @@ The currently selected local inference defaults are Qwen3-TTS 0.6B CustomVoice 6
 
 ## Headless quick start
 
-Requirements: Apple Command Line Tools or Xcode, Python 3.11–3.13, and [uv](https://docs.astral.sh/uv/).
+Requirements: Apple Command Line Tools or Xcode, Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and PortAudio (`brew install portaudio`) for live microphone/speaker mode.
 
 ```sh
 git submodule update --init --recursive
-uv sync --extra runtime
+uv sync --extra runtime --extra inference
 uv run python scripts/build_native.py
+uv run python scripts/setup_live_data.py
 uv run simo doctor
 uv run simo headless --transcript "hello" --transcript "remember the blue door"
 ```
@@ -31,8 +32,19 @@ Install the optional Apple Silicon inference runtimes before live preflight. Thi
 
 ```sh
 uv sync --extra runtime --extra inference
+uv run python scripts/setup_live_data.py
 uv run --extra inference simo doctor --mode live
 ```
+
+The live-data setup downloads only NLTK's checksum-pinned 4.3 MB `punkt_tab` tokenizer into ignored `.cache/` storage. Live preflight also verifies MLX Metal and the selected/default PortAudio input and output devices. It remains not ready until all three model repositories exist under `.models/`.
+
+After the model-download checkpoint and successful live preflight, start the local agent with headphones to reduce speaker-to-microphone feedback:
+
+```sh
+uv run simo live
+```
+
+The live pipeline is local microphone → bounded energy utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, and the native Flecs owner.
 
 Environment overrides are parsed once into an immutable configuration:
 
@@ -45,6 +57,13 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_MAX_SEGMENTS` | `64` |
 | `SIMO_CONTEXT_MAX_CHARS` | `8000` |
 | `SIMO_CONTEXT_MAX_AGE_MS` | `1000` |
+| `SIMO_AUDIO_INPUT_DEVICE_INDEX` | system default |
+| `SIMO_AUDIO_OUTPUT_DEVICE_INDEX` | system default |
+| `SIMO_VAD_START_RMS` | `0.02` |
+| `SIMO_VAD_START_MS` | `60` |
+| `SIMO_VAD_STOP_MS` | `500` |
+| `SIMO_VAD_PRE_ROLL_MS` | `200` |
+| `SIMO_MAX_UTTERANCE_S` | `30` |
 | `SIMO_TTS_MODEL` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` |
 | `SIMO_TTS_VOICE` | `Aiden` |
 | `SIMO_TTS_STREAMING_INTERVAL_S` | `0.32` |

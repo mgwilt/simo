@@ -4,7 +4,7 @@ title: Finish the Simo realtime agent
 description: Tracks delivery of a runnable macOS-first open-source voice agent with Pipecat media, Flecs context, OKF knowledge, and proportional live evidence.
 tags: [work, product, realtime, voice, flecs, pipecat, okf]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:07:39Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent
@@ -19,11 +19,11 @@ simo:
     priority: p1
     accountable: codex/gpt-5.6-sol
     created_at: 2026-08-03T00:02:13Z
-    updated_at: 2026-08-03T01:07:39Z
+    updated_at: 2026-08-03T01:35:05Z
     depends_on: [W-20260802-semantic-context-spine]
     knowledge_refs: [architecture/semantic-context-spine, interfaces/gepard-tts, governance/DOC-0001-documentation-and-work-management]
     write_paths: [README.md, CMakeLists.txt, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
-    next_action: Obtain explicit authorization for the selected model-weight downloads, implement the live microphone/speaker pipeline, and execute three-turn interruption acceptance on the declared Mac.
+    next_action: Obtain explicit authorization for approximately 6.90 GiB of selected model weights, execute each model independently, then run the three-turn microphone/speaker interruption acceptance.
     blocker: null
 ---
 # Finish the Simo realtime agent

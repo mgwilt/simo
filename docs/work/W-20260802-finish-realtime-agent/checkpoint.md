@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:07:39Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -25,6 +25,6 @@ simo:
 - Completed: `T-005` installed the optional MLX runtime set, verified Metal/API availability outside the sandbox, and added lazy Parakeet streaming-session and MLX-LM text adapters plus Pipecat processors at `754265a`.
 - Completed: `T-006` added lazy Qwen3-TTS generation through MLX-Audio, bounded cross-thread streaming, signed 16-bit mono PCM framing, Pipecat contextual audio frames, cooperative cancellation between generated chunks, and bounded error propagation at `f07a5e5`.
 - Completed: `T-007` added a pure fixed-schema privacy-safe JSONL stream, aggregate queue/world/stage metrics, inference timing including first generated TTS audio, normal/cancelled lifecycle reporting, cancellation cleanup tests, terminal-interrupt status, and the operator contract at `e5a6f6a`.
-- Pending: `T-008` live three-turn interruptible voice acceptance.
+- Progress: `T-008` now has the installed/locked PyAudio transport, typed device/VAD configuration, bounded utterance and interruption processor, complete local Pipecat pipeline owner, explicit PortAudio cleanup, checksum-pinned small-data setup, fake-inference worker lifecycle proof, and outside-sandbox device preflight at `7f390b1`. Real models and audio acceptance remain pending.
 - Blocker: none.
-- Next action: request the scope-required explicit checkpoint for approximately 6.90 GiB of model-weight downloads; live inference, microphone/speaker I/O, playback interruption, and latency remain unproved.
+- Next action: request the scope-required explicit checkpoint for approximately 6.90 GiB of model-weight downloads; then prove each model before opening the microphone and running the human acceptance session.

@@ -4,7 +4,7 @@ title: Finish Simo verification
 description: Records proportional checks for the complete realtime-agent product.
 tags: [work, verification, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:07:39Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-VERIFICATION
@@ -21,4 +21,5 @@ simo:
 - `E-004` records partial `A-006` evidence at `754265a`: package versions resolve, Metal and public APIs load outside the sandbox, and lazy STT/text boundaries pass fake-backend tests without weights.
 - `E-005` records partial `A-004` and `A-007` evidence at `f07a5e5`: fake-backend Qwen streaming crosses a bounded worker queue into validated mono PCM Pipecat frames; consumer close cooperatively stops generation between chunks and backend failures become bounded error frames.
 - `E-006` records partial `A-009` and `A-010` evidence at `e5a6f6a`: the headless owner and selected live inference adapters share a pure fixed-schema JSONL stream and aggregate metrics; normal and cancelled lifecycles clean up; terminal interrupt returns status 130; privacy sentinel content is absent from operational events.
-- Model-weight execution, audio I/O, cancellation during a Metal kernel, live latency, and live operational readiness remain unverified. The bounded causal mailbox and cooperative TTS cancellation cover part, but not all, of `A-004`; `A-006`, `A-007`, and `A-009` remain open pending live execution.
+- `E-007` records partial `A-004`, `A-008`, and `A-009` evidence at `7f390b1`: the local 16/24 kHz Pipecat topology executes worker setup/teardown with fake inference; energy turn detection emits interruption and bounded utterance frames; PortAudio ownership is explicit; outside-sandbox preflight sees MLX Metal and the actual default Mac audio devices.
+- Model-weight execution, microphone capture, speaker playback, cancellation during a Metal kernel, live latency, and live operational readiness remain unverified. `A-006`, `A-007`, `A-008`, and `A-009` remain open pending live execution; `A-004` remains open until real playback interruption is observed.
