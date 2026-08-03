@@ -17,6 +17,10 @@ Start with the narrowest relevant section. This `docs/` directory is the Simo OK
 
 - [Runtime interfaces](interfaces/) - Defines implemented boundaries to external services and frameworks.
 
+## Operations
+
+- [Runtime operations](operations/) - Defines lifecycle, privacy-safe observability, metrics, and shutdown behavior.
+
 ## Work
 
 - [Work index](work/) - Routes to active, review, blocked, and archived Work Plan bundles without accumulating one flat work record.

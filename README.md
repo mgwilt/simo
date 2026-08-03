@@ -53,6 +53,20 @@ Environment overrides are parsed once into an immutable configuration:
 
 Runtime configuration, model weights, generated audio, and local caches are ignored by Git. Simo does not log or persist raw audio or transcripts by default; the current headless JSON output intentionally contains the synthetic transcripts supplied on its command line.
 
+## Operations and privacy
+
+`simo headless` writes its requested result to standard output and privacy-safe operational events to standard error as JSON Lines with schema `simo.event.v1`. Redirect the streams independently when collecting evidence:
+
+```sh
+uv run simo headless --transcript "synthetic test turn" \
+  > /tmp/simo-result.json \
+  2> /tmp/simo-events.jsonl
+```
+
+The event stream records lifecycle transitions, shutdown reason, aggregate stage latency and errors, TTS time to first generated audio, Flecs world revision, and bounded queue depth/drop counters. It never includes transcript text, prompts, generated text, raw audio, exception messages, or model output. The headless result is different: its snapshot intentionally echoes the synthetic command-line transcripts, so treat that output according to the supplied data. Interrupting the command releases the Pipecat pipeline and native world before exiting; the command returns status `130` for a terminal interrupt.
+
+See [runtime operations](docs/operations/runtime-observability.md) for the schema, ownership, and proof limits.
+
 ## Development checks
 
 ```sh
