@@ -17,8 +17,8 @@ simo:
 
 | ID | Milestone | Acceptance | State |
 |---|---|---|---|
-| T-001 | Implement local alias manifests, profile/persona versions, SQLite schemas, export/import, and foundational CLI | A-001, A-002, A-003 | active |
-| T-002 | Add persisted multi-turn recording, assistant speech-stage capture, transcript review, resume, and deletion | A-002, A-003, A-004, A-007 | pending |
+| T-001 | Implement local alias manifests, profile/persona versions, SQLite schemas, export/import, and foundational CLI | A-001, A-002, A-003 | complete |
+| T-002 | Add persisted multi-turn recording, assistant speech-stage capture, transcript review, resume, and deletion | A-002, A-003, A-004, A-007 | active |
 | T-003 | Add conversation/participant-scoped Flecs projections and bounded context retrieval | A-004, A-005 | pending |
 | T-004 | Add safe private relationship learning and alias OKF materialization | A-006, A-007 | pending |
 | T-005 | Add self-hosted LiveKit transport, participant isolation, and two-Simo room runner | A-008 | pending |
