@@ -3,10 +3,11 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from simo.config import RunMode, RuntimeConfig
-from simo.doctor import inspect_runtime
+from simo.doctor import _local_audio_device_check, inspect_runtime
 
 
 class DoctorTests(unittest.TestCase):
@@ -20,9 +21,10 @@ class DoctorTests(unittest.TestCase):
             report = inspect_runtime(config)
 
         self.assertTrue(report.ready)
-        self.assertEqual(["platform", "architecture", "native core"], [
-            check.name for check in report.checks
-        ])
+        self.assertEqual(
+            ["platform", "architecture", "native core"],
+            [check.name for check in report.checks],
+        )
 
     def test_live_reports_each_missing_runtime_and_model(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -39,12 +41,32 @@ class DoctorTests(unittest.TestCase):
                 report = inspect_runtime(config)
 
         self.assertFalse(report.ready)
-        self.assertEqual(11, len(report.checks))
+        self.assertEqual(13, len(report.checks))
         self.assertEqual(
-            8,
+            10,
             sum(not check.ok for check in report.checks),
         )
         self.assertEqual("live", report.as_dict()["mode"])
+
+    def test_audio_check_uses_configured_device_indices(self) -> None:
+        config = RuntimeConfig.from_environment(
+            {
+                "SIMO_AUDIO_INPUT_DEVICE_INDEX": "2",
+                "SIMO_AUDIO_OUTPUT_DEVICE_INDEX": "4",
+            },
+            mode=RunMode.LIVE,
+        )
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout='{"input":"Mic","output":"Speaker"}\n',
+            stderr="",
+        )
+        with patch("simo.doctor.subprocess.run", return_value=completed) as run:
+            check = _local_audio_device_check(config)
+
+        self.assertTrue(check.ok)
+        self.assertEqual("input=Mic; output=Speaker", check.detail)
+        self.assertEqual(["2", "4"], run.call_args.args[0][-2:])
 
 
 if __name__ == "__main__":

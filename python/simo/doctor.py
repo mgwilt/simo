@@ -57,7 +57,7 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
         _core_check(config),
     ]
     if is_live:
-        module_checks = [
+        mlx_module_checks = [
             _module_check(name, module)
             for name, module in (
                 ("MLX-Audio", "mlx_audio"),
@@ -65,15 +65,27 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
                 ("MLX-LM", "mlx_lm"),
             )
         ]
-        checks.extend(module_checks)
+        audio_module_check = _module_check("PyAudio", "pyaudio")
+        checks.extend(mlx_module_checks)
+        checks.append(audio_module_check)
         checks.append(
             _mlx_metal_check()
-            if all(check.ok for check in module_checks)
+            if all(check.ok for check in mlx_module_checks)
             else Check(
                 "MLX Metal device",
                 False,
                 True,
                 "not tested until all MLX runtime modules are installed",
+            )
+        )
+        checks.append(
+            _local_audio_device_check(config)
+            if audio_module_check.ok
+            else Check(
+                "local audio devices",
+                False,
+                True,
+                "not tested until PyAudio is installed",
             )
         )
         checks.append(_nltk_data_check())
@@ -138,6 +150,64 @@ def _nltk_data_check() -> Check:
             "NLTK punkt_tab not installed; run: python -m nltk.downloader punkt_tab",
         )
     return Check("Pipecat sentence data", True, True, str(location))
+
+
+def _local_audio_device_check(config: RuntimeConfig) -> Check:
+    script = """
+import json
+import pyaudio
+import sys
+p = pyaudio.PyAudio()
+try:
+    input_index = int(sys.argv[1]) if sys.argv[1] else None
+    output_index = int(sys.argv[2]) if sys.argv[2] else None
+    input_info = (
+        p.get_device_info_by_index(input_index)
+        if input_index is not None
+        else p.get_default_input_device_info()
+    )
+    output_info = (
+        p.get_device_info_by_index(output_index)
+        if output_index is not None
+        else p.get_default_output_device_info()
+    )
+    if int(input_info.get("maxInputChannels", 0)) < 1:
+        raise RuntimeError("selected input device has no input channels")
+    if int(output_info.get("maxOutputChannels", 0)) < 1:
+        raise RuntimeError("selected output device has no output channels")
+    value = {
+        "input": input_info.get("name", "unknown"),
+        "output": output_info.get("name", "unknown"),
+    }
+    print(json.dumps(value))
+finally:
+    p.terminate()
+"""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            ""
+            if config.audio_input_device_index is None
+            else str(config.audio_input_device_index),
+            ""
+            if config.audio_output_device_index is None
+            else str(config.audio_output_device_index),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        try:
+            devices = json.loads(result.stdout)
+            detail = f"input={devices['input']}; output={devices['output']}"
+        except (json.JSONDecodeError, KeyError, TypeError):
+            detail = "default input and output are available"
+        return Check("local audio devices", True, True, detail)
+    detail_lines = (result.stderr or result.stdout).strip().splitlines()
+    detail = detail_lines[-1] if detail_lines else "no default input/output available"
+    return Check("local audio devices", False, True, detail[:240])
 
 
 def _apple_hardware_detail() -> str:

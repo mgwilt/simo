@@ -22,6 +22,13 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.repository / ".models", config.models_dir)
         self.assertEqual(8_000, config.context_max_chars)
         self.assertEqual(1_000, config.context_max_age_ms)
+        self.assertIsNone(config.audio_input_device_index)
+        self.assertIsNone(config.audio_output_device_index)
+        self.assertEqual(0.02, config.vad_start_rms)
+        self.assertEqual(60, config.vad_start_ms)
+        self.assertEqual(500, config.vad_stop_ms)
+        self.assertEqual(200, config.vad_pre_roll_ms)
+        self.assertEqual(30.0, config.max_utterance_s)
         self.assertEqual("Aiden", config.tts_voice)
         self.assertEqual(0.32, config.tts_streaming_interval_s)
 
@@ -38,6 +45,13 @@ class RuntimeConfigTests(unittest.TestCase):
                 "SIMO_TTS_MODEL": "example/tts",
                 "SIMO_TTS_VOICE": "Ryan",
                 "SIMO_TTS_STREAMING_INTERVAL_S": "0.5",
+                "SIMO_AUDIO_INPUT_DEVICE_INDEX": "0",
+                "SIMO_AUDIO_OUTPUT_DEVICE_INDEX": "3",
+                "SIMO_VAD_START_RMS": "0.04",
+                "SIMO_VAD_START_MS": "80",
+                "SIMO_VAD_STOP_MS": "600",
+                "SIMO_VAD_PRE_ROLL_MS": "250",
+                "SIMO_MAX_UTTERANCE_S": "20",
             }
         )
         self.assertEqual(RunMode.LIVE, config.mode)
@@ -49,6 +63,13 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(Path("/tmp/simo-test-models/tts"), config.tts.local_path)
         self.assertEqual("Ryan", config.tts_voice)
         self.assertEqual(0.5, config.tts_streaming_interval_s)
+        self.assertEqual(0, config.audio_input_device_index)
+        self.assertEqual(3, config.audio_output_device_index)
+        self.assertEqual(0.04, config.vad_start_rms)
+        self.assertEqual(80, config.vad_start_ms)
+        self.assertEqual(600, config.vad_stop_ms)
+        self.assertEqual(250, config.vad_pre_roll_ms)
+        self.assertEqual(20.0, config.max_utterance_s)
 
     def test_invalid_capacity_fails_before_runtime_start(self) -> None:
         for value in ("0", "-1", "many"):
@@ -64,6 +85,14 @@ class RuntimeConfigTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "positive number"):
                     RuntimeConfig.from_environment(
                         {"SIMO_TTS_STREAMING_INTERVAL_S": value}
+                    )
+        with self.assertRaisesRegex(ValueError, "must not exceed 1"):
+            RuntimeConfig.from_environment({"SIMO_VAD_START_RMS": "1.1"})
+        for value in ("-1", "device"):
+            with self.subTest(device=value):
+                with self.assertRaisesRegex(ValueError, "non-negative integer"):
+                    RuntimeConfig.from_environment(
+                        {"SIMO_AUDIO_INPUT_DEVICE_INDEX": value}
                     )
 
 

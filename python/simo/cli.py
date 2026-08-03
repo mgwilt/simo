@@ -8,15 +8,20 @@ import json
 import os
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 # Keep the default CLI event stream machine-readable. Pipecat uses Loguru and
 # operators may opt into its separate diagnostics explicitly in future modes.
 os.environ.setdefault("LOGURU_AUTOINIT", "False")
+os.environ.setdefault(
+    "NLTK_DATA",
+    str(Path(__file__).resolve().parents[2] / ".cache" / "nltk_data"),
+)
 
 from simo.config import RunMode, RuntimeConfig
 from simo.doctor import DoctorReport, inspect_runtime
 from simo.operations import JsonEventSink
-from simo.runtime import HeadlessRuntime
+from simo.runtime import HeadlessRuntime, LiveRuntime
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,13 +41,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="final user transcript to enqueue; repeat for multiple turns",
     )
+    subcommands.add_parser(
+        "live",
+        help="run the local microphone/speaker MLX voice agent",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        config = RuntimeConfig.from_environment(mode=getattr(args, "mode", "headless"))
+        requested_mode = (
+            RunMode.LIVE
+            if args.command == "live"
+            else getattr(args, "mode", RunMode.HEADLESS)
+        )
+        config = RuntimeConfig.from_environment(mode=requested_mode)
         if args.command == "doctor":
             report = inspect_runtime(config)
             _print_report(report, args.as_json)
@@ -68,6 +82,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     }
                 )
             )
+            return 0
+        if args.command == "live":
+            report = inspect_runtime(config)
+            if not report.ready:
+                _print_report(report, False)
+                return 1
+            result = asyncio.run(
+                LiveRuntime(config, events=JsonEventSink(sys.stderr)).run()
+            )
+            print(json.dumps({"operations": result.operations}))
             return 0
     except KeyboardInterrupt:
         print("simo: interrupted", file=sys.stderr)

@@ -38,6 +38,13 @@ class RuntimeConfig:
     max_segments: int
     context_max_chars: int
     context_max_age_ms: int
+    audio_input_device_index: int | None
+    audio_output_device_index: int | None
+    vad_start_rms: float
+    vad_start_ms: int
+    vad_stop_ms: int
+    vad_pre_roll_ms: int
+    max_utterance_s: float
     tts_voice: str
     tts_streaming_interval_s: float
     tts: ModelConfig
@@ -60,6 +67,21 @@ class RuntimeConfig:
         max_segments = _positive_integer(values, "SIMO_MAX_SEGMENTS", 64)
         context_max_chars = _positive_integer(values, "SIMO_CONTEXT_MAX_CHARS", 8_000)
         context_max_age_ms = _positive_integer(values, "SIMO_CONTEXT_MAX_AGE_MS", 1_000)
+        audio_input_device_index = _optional_nonnegative_integer(
+            values,
+            "SIMO_AUDIO_INPUT_DEVICE_INDEX",
+        )
+        audio_output_device_index = _optional_nonnegative_integer(
+            values,
+            "SIMO_AUDIO_OUTPUT_DEVICE_INDEX",
+        )
+        vad_start_rms = _positive_float(values, "SIMO_VAD_START_RMS", 0.02)
+        if vad_start_rms > 1:
+            raise ValueError("SIMO_VAD_START_RMS must not exceed 1")
+        vad_start_ms = _positive_integer(values, "SIMO_VAD_START_MS", 60)
+        vad_stop_ms = _positive_integer(values, "SIMO_VAD_STOP_MS", 500)
+        vad_pre_roll_ms = _positive_integer(values, "SIMO_VAD_PRE_ROLL_MS", 200)
+        max_utterance_s = _positive_float(values, "SIMO_MAX_UTTERANCE_S", 30.0)
         tts_voice = values.get("SIMO_TTS_VOICE", "Aiden").strip()
         if not tts_voice:
             raise ValueError("SIMO_TTS_VOICE must not be empty")
@@ -85,6 +107,13 @@ class RuntimeConfig:
             max_segments=max_segments,
             context_max_chars=context_max_chars,
             context_max_age_ms=context_max_age_ms,
+            audio_input_device_index=audio_input_device_index,
+            audio_output_device_index=audio_output_device_index,
+            vad_start_rms=vad_start_rms,
+            vad_start_ms=vad_start_ms,
+            vad_stop_ms=vad_stop_ms,
+            vad_pre_roll_ms=vad_pre_roll_ms,
+            max_utterance_s=max_utterance_s,
             tts_voice=tts_voice,
             tts_streaming_interval_s=tts_streaming_interval_s,
             tts=model("SIMO_TTS_MODEL", QWEN_TTS_MODEL),
@@ -112,4 +141,20 @@ def _positive_float(values: Mapping[str, str], name: str, default: float) -> flo
         raise ValueError(f"{name} must be a positive number") from error
     if value <= 0:
         raise ValueError(f"{name} must be a positive number")
+    return value
+
+
+def _optional_nonnegative_integer(
+    values: Mapping[str, str],
+    name: str,
+) -> int | None:
+    raw = values.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be a non-negative integer") from error
+    if value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
     return value

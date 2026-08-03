@@ -9,6 +9,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from simo.cli import main
+from simo.config import RunMode
+from simo.doctor import DoctorReport
 
 
 class CliTests(unittest.TestCase):
@@ -89,6 +91,20 @@ class CliTests(unittest.TestCase):
         self.assertTrue(events)
         self.assertTrue(all(event["schema"] == "simo.event.v1" for event in events))
         self.assertNotIn("private sentinel", result.stderr)
+
+    def test_live_command_stops_at_failed_preflight(self) -> None:
+        output = io.StringIO()
+        report = DoctorReport(RunMode.LIVE, False, ())
+        with (
+            redirect_stdout(output),
+            patch("simo.cli.inspect_runtime", return_value=report),
+            patch("simo.cli.LiveRuntime") as runtime,
+        ):
+            status = main(["live"])
+
+        self.assertEqual(1, status)
+        self.assertIn("Simo live: not ready", output.getvalue())
+        runtime.assert_not_called()
 
 
 if __name__ == "__main__":

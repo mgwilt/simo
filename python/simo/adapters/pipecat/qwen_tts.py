@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 from pipecat.frames.frames import ErrorFrame, Frame, TTSAudioRawFrame
+from pipecat.services.settings import TTSSettings
 from pipecat.services.tts_service import TTSService
 
 from simo.inference import SpeechSynthesizer
@@ -17,9 +18,15 @@ class QwenMLXTTSService(TTSService):
         synthesizer: SpeechSynthesizer,
         *,
         metrics: RuntimeMetrics | None = None,
+        model: str = "qwen3-tts",
+        voice: str | None = None,
+        settings: TTSSettings | None = None,
         **kwargs: object,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(
+            settings=settings or TTSSettings(model=model, voice=voice, language=None),
+            **kwargs,
+        )
         self._synthesizer = synthesizer
         self._runtime_metrics = metrics
 
