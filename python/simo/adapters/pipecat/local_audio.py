@@ -24,6 +24,7 @@ from pipecat.frames.frames import (
     TTSAudioRawFrame,
     TTSStartedFrame,
     TTSStoppedFrame,
+    UserAudioRawFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
@@ -192,7 +193,7 @@ class SileroUtteranceProcessor(FrameProcessor):
         self._analyzer = analyzer
         self._pre_roll_ms = pre_roll_ms
         self._max_utterance_s = max_utterance_s
-        self._user_id = user_id
+        self._default_user_id = user_id
         self._runtime_metrics = runtime_metrics
         self._playback_state = playback_state
         self._pre_roll: deque[bytes] = deque()
@@ -200,6 +201,7 @@ class SileroUtteranceProcessor(FrameProcessor):
         self._utterance = bytearray()
         self._sample_rate = 0
         self._speaking = False
+        self._active_user_id: str | None = None
 
     async def cleanup(self) -> None:
         await super().cleanup()
@@ -237,6 +239,14 @@ class SileroUtteranceProcessor(FrameProcessor):
             return
         if self._sample_rate not in (0, frame.sample_rate):
             raise ValueError("local input sample rate changed during an utterance")
+        frame_user_id = (
+            frame.user_id
+            if isinstance(frame, UserAudioRawFrame) and frame.user_id
+            else self._default_user_id
+        )
+        if self._active_user_id not in (None, frame_user_id):
+            self._reset()
+        self._active_user_id = frame_user_id
         if self._sample_rate == 0:
             self._analyzer.set_sample_rate(frame.sample_rate)
         self._sample_rate = frame.sample_rate
@@ -288,7 +298,7 @@ class SileroUtteranceProcessor(FrameProcessor):
             PCMUtteranceFrame(
                 audio=audio,
                 sample_rate=sample_rate,
-                user_id=self._user_id,
+                user_id=self._active_user_id or self._default_user_id,
                 timestamp=datetime.now(UTC).isoformat(),
             ),
             direction,
@@ -301,3 +311,4 @@ class SileroUtteranceProcessor(FrameProcessor):
         self._utterance.clear()
         self._sample_rate = 0
         self._speaking = False
+        self._active_user_id = None

@@ -24,6 +24,7 @@ from pipecat.frames.frames import (
     TTSAudioRawFrame,
     TTSStartedFrame,
     TTSStoppedFrame,
+    UserAudioRawFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
@@ -157,6 +158,28 @@ class SileroUtteranceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(any(isinstance(frame, PCMUtteranceFrame) for frame in frames))
         self.assertIsInstance(frames[-1], CancelFrame)
+
+    async def test_preserves_remote_participant_id_on_segmented_audio(self) -> None:
+        processor = SileroUtteranceProcessor(FakeAnalyzer([VADState.SPEAKING, VADState.QUIET]))
+        frames: list[object] = []
+
+        async def collect(frame: object, direction: FrameDirection) -> None:
+            frames.append(frame)
+
+        processor.push_frame = collect  # type: ignore[method-assign]
+        for _ in range(2):
+            await processor.process_frame(
+                UserAudioRawFrame(
+                    user_id="PA_remote_sid",
+                    audio=b"\xb8\x0b" * 320,
+                    sample_rate=16_000,
+                    num_channels=1,
+                ),
+                FrameDirection.DOWNSTREAM,
+            )
+
+        utterance = next(frame for frame in frames if isinstance(frame, PCMUtteranceFrame))
+        self.assertEqual("PA_remote_sid", utterance.user_id)
 
     async def test_rejects_non_mono_and_sample_rate_changes(self) -> None:
         processor = SileroUtteranceProcessor(FakeAnalyzer([VADState.SPEAKING, VADState.SPEAKING]))

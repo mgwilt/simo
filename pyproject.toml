@@ -17,7 +17,7 @@ runtime = [
     # NLTK 3.10's import guard misclassifies dependencies in a project-local
     # virtual environment as current-directory imports.
     "nltk>=3.10.0,<3.10.1",
-    "pipecat-ai[local]",
+    "pipecat-ai[livekit,local]",
 ]
 inference = [
     "mlx-audio>=0.4.6",
