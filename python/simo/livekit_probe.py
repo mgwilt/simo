@@ -26,7 +26,8 @@ from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.workers.runner import WorkerRunner
 
-from simo.adapters.pipecat.livekit_audio import LiveKitRoomConfig, SimoLiveKitTransport
+from simo.adapters.pipecat.livekit_audio import SimoLiveKitTransport
+from simo.livekit_room import LiveKitRoomConfig
 
 _SERVER_HOST: Final = "127.0.0.1"
 _SERVER_PORT: Final = 17_880

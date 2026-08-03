@@ -13,11 +13,8 @@ os.environ.setdefault(
     str(Path(__file__).resolve().parents[1] / "fixtures/nltk_data"),
 )
 
-from simo.adapters.pipecat.livekit_audio import (
-    LiveKitRoomConfig,
-    SimoLiveKitTransport,
-    local_livekit_server_command,
-)
+from simo.adapters.pipecat.livekit_audio import SimoLiveKitTransport
+from simo.livekit_room import LiveKitRoomConfig, local_livekit_server_command
 
 
 class LiveKitRoomConfigTests(unittest.IsolatedAsyncioTestCase):
