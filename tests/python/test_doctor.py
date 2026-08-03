@@ -39,9 +39,9 @@ class DoctorTests(unittest.TestCase):
                 report = inspect_runtime(config)
 
         self.assertFalse(report.ready)
-        self.assertEqual(10, len(report.checks))
+        self.assertEqual(11, len(report.checks))
         self.assertEqual(
-            7,
+            8,
             sum(not check.ok for check in report.checks),
         )
         self.assertEqual("live", report.as_dict()["mode"])

@@ -57,12 +57,23 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
         _core_check(config),
     ]
     if is_live:
-        checks.extend(
+        module_checks = [
             _module_check(name, module)
             for name, module in (
                 ("MLX-Audio", "mlx_audio"),
                 ("Parakeet MLX", "parakeet_mlx"),
                 ("MLX-LM", "mlx_lm"),
+            )
+        ]
+        checks.extend(module_checks)
+        checks.append(
+            _mlx_metal_check()
+            if all(check.ok for check in module_checks)
+            else Check(
+                "MLX Metal device",
+                False,
+                True,
+                "not tested until all MLX runtime modules are installed",
             )
         )
         checks.append(_nltk_data_check())
@@ -96,6 +107,19 @@ def _model_check(name: str, path: Path) -> Check:
     found = path.is_dir() and any(path.iterdir())
     detail = str(path) if found else f"not downloaded at {path}"
     return Check(name, found, True, detail)
+
+
+def _mlx_metal_check() -> Check:
+    result = subprocess.run(
+        [sys.executable, "-c", "import mlx.core; print('available')"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return Check("MLX Metal device", True, True, "available to this process")
+    detail_lines = (result.stderr or result.stdout).strip().splitlines()
+    detail = detail_lines[-1] if detail_lines else f"process exited {result.returncode}"
+    return Check("MLX Metal device", False, True, detail[:240])
 
 
 def _nltk_data_check() -> Check:

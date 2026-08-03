@@ -27,6 +27,13 @@ uv run simo doctor --mode live
 
 Headless preflight requires only the native core. Live preflight additionally checks Apple Silicon, the three MLX Python runtimes, local model directories, and Pipecat's NLTK sentence data. Missing live prerequisites are reported without importing model runtimes or loading weights.
 
+Install the optional Apple Silicon inference runtimes before live preflight. This installs code and native libraries, not model weights:
+
+```sh
+uv sync --extra runtime --extra inference
+uv run --extra inference simo doctor --mode live
+```
+
 Environment overrides are parsed once into an immutable configuration:
 
 | Variable | Default |
