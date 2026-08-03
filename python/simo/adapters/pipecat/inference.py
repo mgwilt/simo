@@ -41,9 +41,7 @@ class LocalSTTProcessor(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
-        if direction is FrameDirection.DOWNSTREAM and isinstance(
-            frame, PCMUtteranceFrame
-        ):
+        if direction is FrameDirection.DOWNSTREAM and isinstance(frame, PCMUtteranceFrame):
             metrics = self._runtime_metrics
             token = metrics.start_stage("stt") if metrics else None
             try:
@@ -89,9 +87,7 @@ class LocalTextInferenceProcessor(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
-        if direction is FrameDirection.DOWNSTREAM and isinstance(
-            frame, SemanticTurnFrame
-        ):
+        if direction is FrameDirection.DOWNSTREAM and isinstance(frame, SemanticTurnFrame):
             prompt = (
                 "You are Simo, a concise realtime voice agent.\n\n"
                 f"{frame.prompt}\n\n"
@@ -108,9 +104,7 @@ class LocalTextInferenceProcessor(FrameProcessor):
                 if metrics is not None and token is not None:
                     metrics.finish_stage(token, error=True)
                 await self.push_frame(
-                    ErrorFrame(
-                        error=f"local text inference failed: {error}", exception=error
-                    ),
+                    ErrorFrame(error=f"local text inference failed: {error}", exception=error),
                     direction,
                 )
                 return

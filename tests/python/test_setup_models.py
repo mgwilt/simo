@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import json
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
 from simo.config import RunMode, RuntimeConfig
+
 from scripts.setup_models import (
     download_models,
     marker_is_current,
@@ -31,9 +32,7 @@ class ModelSetupTests(unittest.TestCase):
         self.assertEqual(7_403_765_096, payload["expected_bytes"])
         self.assertGreater(payload["required_free_bytes"], payload["expected_bytes"])
         self.assertEqual("--accept-download", payload["requires_explicit_flag"])
-        self.assertTrue(
-            all(len(model["revision"]) == 40 for model in payload["models"])
-        )
+        self.assertTrue(all(len(model["revision"]) == 40 for model in payload["models"]))
 
     def test_fake_download_verifies_files_writes_marker_and_is_idempotent(self) -> None:
         calls: list[tuple[str, str]] = []
@@ -44,9 +43,7 @@ class ModelSetupTests(unittest.TestCase):
             def download(**kwargs: object) -> str:
                 calls.append((str(kwargs["repo_id"]), str(kwargs["revision"])))
                 target = Path(str(kwargs["local_dir"]))
-                selected = next(
-                    plan.config for plan in plans if plan.config.local_path == target
-                )
+                selected = next(plan.config for plan in plans if plan.config.local_path == target)
                 for relative in selected.required_paths:
                     path = target / relative
                     path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,9 +56,7 @@ class ModelSetupTests(unittest.TestCase):
 
             self.assertEqual(3, len(calls))
             self.assertTrue(all(marker_is_current(plan.config) for plan in plans))
-            marker = json.loads(
-                (plans[0].config.local_path / ".simo-model.json").read_text()
-            )
+            marker = json.loads((plans[0].config.local_path / ".simo-model.json").read_text())
             self.assertEqual(plans[0].config.revision, marker["revision"])
 
 

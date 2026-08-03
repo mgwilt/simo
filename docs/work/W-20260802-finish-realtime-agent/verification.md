@@ -4,7 +4,7 @@ title: Finish Simo verification
 description: Records proportional checks for the complete realtime-agent product.
 tags: [work, verification, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:17:32Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:53:48Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-VERIFICATION
@@ -25,5 +25,6 @@ simo:
 - `E-008` records the model-download checkpoint at `3be0e37`: the installer is plan-only without explicit acceptance, resolves three immutable repository revisions totaling 6.90 GiB, reserves 10.62 GiB, verifies required files before writing atomic completion markers, and keeps doctor closed for incomplete or mismatched models.
 - `E-009` verifies `A-006` and `A-007` at `ad49653`: immutable model markers pass doctor; real Qwen text, Qwen TTS, and Parakeet STT execute on MLX Metal; synthetic speech round-trips exactly; the same providers complete one Pipecat/Flecs semantic turn with zero errors or drops; and generated PCM plays through default PortAudio output.
 - `E-010` verifies `A-010` at `8b1cb34`: the native build, 56 Python tests, first-party runtime Pyright, first-party Ruff lint/format, documentation validation, five knowledge tests, and whitespace validation all pass from the locked environment. Together `E-002`, `E-005`, `E-007`, and `E-009` satisfy `A-004`; `E-006`, `E-007`, and `E-009` satisfy `A-009`.
-- `E-011` records partial `A-008` evidence at `ed30e7f`: application-controlled RMS calibration completed without retained audio; an energy-gated live run reached three STT calls and emitted interruption signals but was rejected by the user for VAD and latency quality; Silero then replaced the energy gate and its corrected probe evaluated `1626` neural windows from `2602` Arctis input chunks. The maximum confidence was `0.031398`, so no Silero turn was accepted at `0.5`. These runs prove device delivery, detector execution, privacy-safe counters, and clean teardown, not acceptable conversation quality.
-- Human-accepted microphone turn boundaries, real playback interruption, cancellation during a Metal kernel, and three-turn live latency remain unverified. `A-008` and final publication record `A-011` remain open.
+- `E-011` verifies `A-012` on the working tree based at `4672689`: the installed pre-commit launcher invokes Lefthook, the explicit all-files route passes frozen Ruff `ALL` lint and formatting, `ty` with warning failure, and baseline-ratcheted BasedPyright strict, and the installed pre-push launcher passes the native build, 61 Python tests, documentation validation, and five knowledge tests. Managed `.git` permissions blocked replacement of the existing launcher files, not invocation.
+- `E-012` verifies `A-008`, `A-013`, and `A-014`: application-controlled measurement established ambient/speech Silero separation after DC removal and bounded gain; the unattended real-model proof detected three generated utterances and emitted three interruption signals, suppressed all `84` simulated playback-echo chunks with zero false turns, reproduced the exact STT phrase across three Pipecat/Flecs context injections, advanced world revision to `3`, and reported zero mailbox drops. Isolated pinned-model measurement selected the bounded realtime response and TTS interval.
+- Cancellation during an in-flight Metal kernel and repeated per-turn p95 latency remain unverified. Final publication record `A-011` remains open. Subjective headset and room quality are explicitly outside synthetic attestation.

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from simo.context import EnqueueResult
-from simo.context import DropPolicy
+from simo.context import DropPolicy, EnqueueResult
 from simo.observation import BoundedTranscriptMailbox, FinalTranscriptObservationBridge
 
 
@@ -11,9 +10,7 @@ class RecordingSink:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, bool]] = []
 
-    def enqueue_transcript(
-        self, speaker: str, text: str, is_final: bool = True
-    ) -> EnqueueResult:
+    def enqueue_transcript(self, speaker: str, text: str, is_final: bool = True) -> EnqueueResult:
         self.calls.append((speaker, text, is_final))
         return EnqueueResult(True, len(self.calls))
 
@@ -23,18 +20,12 @@ class ObservationBridgeTests(unittest.TestCase):
         sink = RecordingSink()
         bridge = FinalTranscriptObservationBridge(sink, dedupe_capacity=2)
         self.assertIsNone(
-            bridge.observe(
-                frame_key="partial", speaker="user", text="hel", is_final=False
-            )
+            bridge.observe(frame_key="partial", speaker="user", text="hel", is_final=False)
         )
-        accepted = bridge.observe(
-            frame_key="final-1", speaker="user", text="hello", is_final=True
-        )
+        accepted = bridge.observe(frame_key="final-1", speaker="user", text="hello", is_final=True)
         self.assertIsNotNone(accepted)
         self.assertIsNone(
-            bridge.observe(
-                frame_key="final-1", speaker="user", text="hello", is_final=True
-            )
+            bridge.observe(frame_key="final-1", speaker="user", text="hello", is_final=True)
         )
         self.assertEqual([("user", "hello", True)], sink.calls)
         self.assertEqual(1, bridge.stats().accepted)

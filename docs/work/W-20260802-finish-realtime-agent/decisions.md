@@ -4,7 +4,7 @@ title: Finish Simo decisions
 description: Records locked product boundaries and evidence-gated runtime choices.
 tags: [work, decisions, product, inference]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:53:48Z }
 sources:
   - id: mlx-audio
     resource: https://github.com/Blaizzy/mlx-audio
@@ -86,9 +86,19 @@ The first macOS live path used deterministic normalized-RMS start/stop detection
 
 The selected repositories are pinned to full revisions and model setup prints a size and disk-space plan without downloading by default. A separate `--accept-download` flag authorizes the transfer. Doctor accepts a local model only after its required files exist and an atomic completion marker matches both the configured repository and revision. A partially downloaded, substituted, or subsequently reconfigured model therefore cannot make live preflight ready.
 
-## D-012: Use Silero for runtime voice activity detection
+## D-012: Ratchet strict type safety from an explicit baseline
 
-Runtime turn boundaries use Pipecat's bundled Silero ONNX analyzer with bounded pre-roll, maximum utterance duration, interruption frames, and aggregate confidence telemetry.[^pipecat-silero] RMS calibration remains a privacy-safe input diagnostic, not runtime VAD. The target Arctis stream still needs application-controlled confidence calibration or input conditioning before live acceptance; lowering the neural threshold without measured ambient/speech separation is not accepted as completion evidence.
+BasedPyright strict mode covers first-party runtime, tests, and scripts and keeps `reportAny` and `reportExplicitAny` at error severity. The initial 470 diagnostics are recorded in a relative-path baseline instead of being hidden through weaker global settings. New or moved violations fail immediately; baseline reduction remains reviewable follow-up work. Ruff and `ty` remain independent, baseline-free gates so the baseline cannot suppress lint, formatting, or the second checker.
+
+## D-013: Use conditioned Silero with unattended echo acceptance
+
+Runtime turn boundaries use Pipecat's bundled Silero ONNX analyzer with bounded pre-roll, maximum utterance duration, interruption frames, and aggregate confidence telemetry.[^pipecat-silero] Each analysis window receives DC removal and bounded automatic gain derived from application-controlled ambient/speech measurement. RMS calibration remains a privacy-safe optional input diagnostic, not runtime VAD.
+
+Pipecat TTS start/stop contexts and actual PCM duration reserve a half-duplex suppression window so output cannot become a new input turn. Acceptance is unattended: generated speech must form three real Silero utterances and interruption signals, and replaying the same PCM as simulated speaker echo must form none. This proves detector and suppression logic, not subjective headset or room quality.
+
+## D-014: Bound voice responses and select streaming interval by measurement
+
+The realtime path caps generated text at `48` tokens even though the reusable processor default remains `256`. MLX-Audio documents `streaming_interval` as a latency/overhead control; isolated measurement of the pinned Qwen model selected `0.24` seconds as the balanced default. `0.16` emitted sooner but increased total synthesis overhead, while `0.32` had the slowest first chunk.[^mlx-audio]
 
 [^mlx-audio]: MLX-Audio repository and examples, checked 2026-08-02: Apple Silicon speech generation and streaming interfaces.
 [^qwen-tts-mlx]: Qwen3-TTS 0.6B CustomVoice 6-bit MLX model card, checked 2026-08-02: MLX-Audio conversion, model size, license metadata, and built-in voices.

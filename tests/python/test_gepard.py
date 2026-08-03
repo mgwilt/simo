@@ -4,7 +4,6 @@ import io
 import json
 import unittest
 import wave
-from typing import Self
 from unittest.mock import patch
 
 from simo.gepard import (
@@ -44,7 +43,7 @@ class GepardBoundaryTests(unittest.TestCase):
         class Response:
             status = 200
 
-            def __enter__(self) -> Self:
+            def __enter__(self):
                 return self
 
             def __exit__(self, *args: object) -> None:

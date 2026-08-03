@@ -34,7 +34,7 @@ class SemanticContextSnapshot:
     captured_monotonic_ns: int = field(default_factory=time.monotonic_ns)
 
     @classmethod
-    def from_native(cls, value: dict[str, Any]) -> "SemanticContextSnapshot":
+    def from_native(cls, value: dict[str, Any]) -> SemanticContextSnapshot:
         return cls(
             revision=int(value["revision"]),
             items=tuple(

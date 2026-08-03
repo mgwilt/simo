@@ -14,8 +14,7 @@ from pathlib import Path, PurePosixPath
 import certifi
 
 PUNKT_TAB_URL = (
-    "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/"
-    "packages/tokenizers/punkt_tab.zip"
+    "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/tokenizers/punkt_tab.zip"
 )
 PUNKT_TAB_SHA256 = "e57f64187974277726a3417ca6f181ec5403676c717672eef6a748a7b20e0106"
 PUNKT_TAB_MAX_DOWNLOAD_BYTES = 8_000_000
@@ -65,29 +64,16 @@ def install_archive(
         unpacked = temporary / "unpacked"
         with zipfile.ZipFile(archive_path) as bundle:
             members = bundle.infolist()
-            if (
-                sum(member.file_size for member in members)
-                > PUNKT_TAB_MAX_UNPACKED_BYTES
-            ):
-                raise RuntimeError(
-                    "punkt_tab archive exceeds the configured unpacked bound"
-                )
+            if sum(member.file_size for member in members) > PUNKT_TAB_MAX_UNPACKED_BYTES:
+                raise RuntimeError("punkt_tab archive exceeds the configured unpacked bound")
             for member in members:
                 path = PurePosixPath(member.filename)
-                if (
-                    path.is_absolute()
-                    or ".." in path.parts
-                    or path.parts[:1] != ("punkt_tab",)
-                ):
-                    raise RuntimeError(
-                        f"unsafe punkt_tab archive member: {member.filename}"
-                    )
+                if path.is_absolute() or ".." in path.parts or path.parts[:1] != ("punkt_tab",):
+                    raise RuntimeError(f"unsafe punkt_tab archive member: {member.filename}")
             bundle.extractall(unpacked)
         source = unpacked / "punkt_tab"
         if not is_installed(source):
-            raise RuntimeError(
-                "punkt_tab archive is missing the English tokenizer data"
-            )
+            raise RuntimeError("punkt_tab archive is missing the English tokenizer data")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, target)
 

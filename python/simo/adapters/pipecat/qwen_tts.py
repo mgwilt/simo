@@ -38,7 +38,7 @@ class QwenMLXTTSService(TTSService):
         self,
         text: str,
         context_id: str,
-    ) -> AsyncGenerator[Frame, None]:
+    ) -> AsyncGenerator[Frame | None, None]:
         metrics = self._runtime_metrics
         token = metrics.start_stage("tts") if metrics else None
         first_output = False

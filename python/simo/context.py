@@ -226,9 +226,7 @@ class NativeContextEngine:
             raise RuntimeError("native Simo context engine is closed")
         return self._handle
 
-    def enqueue_transcript(
-        self, speaker: str, text: str, is_final: bool = True
-    ) -> EnqueueResult:
+    def enqueue_transcript(self, speaker: str, text: str, is_final: bool = True) -> EnqueueResult:
         sequence = ctypes.c_uint64()
         result = self._library.simo_context_engine_enqueue_transcript(
             self._require_handle(),
@@ -248,17 +246,11 @@ class NativeContextEngine:
         handle = self._require_handle()
         required = int(self._library.simo_context_engine_snapshot_json(handle, None, 0))
         if required <= 1:
-            raise RuntimeError(
-                "native Simo context engine returned an invalid snapshot size"
-            )
+            raise RuntimeError("native Simo context engine returned an invalid snapshot size")
         buffer = ctypes.create_string_buffer(required)
-        written = int(
-            self._library.simo_context_engine_snapshot_json(handle, buffer, len(buffer))
-        )
+        written = int(self._library.simo_context_engine_snapshot_json(handle, buffer, len(buffer)))
         if written != required:
-            raise RuntimeError(
-                "native Simo context snapshot changed during serialization"
-            )
+            raise RuntimeError("native Simo context snapshot changed during serialization")
         value = json.loads(buffer.value.decode("utf-8"))
         if not isinstance(value, dict):
             raise TypeError("native Simo context snapshot is not an object")
@@ -281,9 +273,7 @@ class NativeContextEngine:
         )
 
     def begin_knowledge_refresh(self) -> None:
-        result = self._library.simo_context_engine_begin_knowledge_refresh(
-            self._require_handle()
-        )
+        result = self._library.simo_context_engine_begin_knowledge_refresh(self._require_handle())
         if result != 0:
             raise RuntimeError("failed to begin native knowledge refresh")
 
@@ -337,9 +327,7 @@ class NativeContextEngine:
         function = self._library.simo_context_engine_knowledge_snapshot_json
         required = int(function(handle, None, 0))
         if required <= 1:
-            raise RuntimeError(
-                "native knowledge graph returned an invalid snapshot size"
-            )
+            raise RuntimeError("native knowledge graph returned an invalid snapshot size")
         buffer = ctypes.create_string_buffer(required)
         written = int(function(handle, buffer, len(buffer)))
         if written != required:

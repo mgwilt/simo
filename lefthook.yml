@@ -5,6 +5,26 @@ pre-commit:
   jobs:
     - name: staged whitespace
       run: git diff --cached --check
+    - name: ruff format
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache uv run --frozen --extra dev ruff format --check python/simo tests/python scripts
+    - name: ruff lint
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache uv run --frozen --extra dev ruff check python/simo tests/python scripts
+    - name: ty
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache uv run --frozen --extra dev ty check --error-on-warning
+    - name: basedpyright
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache uv run --frozen --extra dev basedpyright
+    - name: documentation
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache TIKTOKEN_CACHE_DIR=.cache/tiktoken uv run --frozen python scripts/validate_docs.py
+    - name: knowledge tests
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache TIKTOKEN_CACHE_DIR=.cache/tiktoken uv run --frozen python -m unittest discover -s scripts/knowledge/tests -v
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: native build and tests
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache uv run --frozen python scripts/build_native.py
+    - name: python tests
+      run: UV_CACHE_DIR=/private/tmp/simo-uv-cache uv run --frozen python -m unittest discover -s tests/python -v
     - name: documentation
       run: UV_CACHE_DIR=/private/tmp/simo-uv-cache TIKTOKEN_CACHE_DIR=.cache/tiktoken uv run --frozen python scripts/validate_docs.py
     - name: knowledge tests

@@ -45,9 +45,7 @@ class GepardHttpClient:
     their own asynchronous transport, as the Pipecat adapter does.
     """
 
-    def __init__(
-        self, base_url: str = "http://127.0.0.1:8000", *, timeout_s: float = 30.0
-    ) -> None:
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", *, timeout_s: float = 30.0) -> None:
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
         self._url = f"{base_url.rstrip('/')}/synthesize"
@@ -67,9 +65,7 @@ class GepardHttpClient:
                 body = response.read()
         except HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"Gepard API error (status {error.code}): {detail}"
-            ) from error
+            raise RuntimeError(f"Gepard API error (status {error.code}): {detail}") from error
         except URLError as error:
             raise RuntimeError(f"Gepard API request failed: {error.reason}") from error
         if status != 200:
@@ -94,9 +90,7 @@ def decode_gepard_wav(data: bytes) -> PcmAudio:
     if sample_width != 2:
         raise ValueError(f"Gepard WAV must use 16-bit PCM, got {sample_width * 8}-bit")
     if sample_rate != GEPARD_SAMPLE_RATE:
-        raise ValueError(
-            f"Gepard WAV must use {GEPARD_SAMPLE_RATE} Hz, got {sample_rate} Hz"
-        )
+        raise ValueError(f"Gepard WAV must use {GEPARD_SAMPLE_RATE} Hz, got {sample_rate} Hz")
     return PcmAudio(frames, sample_rate, channels, sample_width)
 
 

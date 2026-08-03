@@ -60,7 +60,7 @@ class AudioDiagnosticsTests(unittest.TestCase):
 
         ambient, speech, trigger = collect_interactive_levels(
             lambda: next(values),
-            cues.append,  # type: ignore[arg-type]
+            cues.append,
             ambient_blocks=4,
             speech_blocks=5,
             onset_timeout_blocks=8,
@@ -78,7 +78,7 @@ class AudioDiagnosticsTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no speech onset"):
             collect_interactive_levels(
                 lambda: next(values),
-                cues.append,  # type: ignore[arg-type]
+                cues.append,
                 ambient_blocks=4,
                 speech_blocks=3,
                 onset_timeout_blocks=4,

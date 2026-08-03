@@ -7,7 +7,6 @@ from types import SimpleNamespace
 
 from pipecat.frames.frames import ErrorFrame, LLMTextFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection
-
 from simo.adapters.pipecat.inference import (
     LocalSTTProcessor,
     LocalTextInferenceProcessor,
@@ -27,7 +26,7 @@ class FakeStream:
         self.result = SimpleNamespace(text=text)
         self.audio: object | None = None
 
-    def __enter__(self) -> "FakeStream":
+    def __enter__(self) -> FakeStream:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -107,9 +106,7 @@ class InferenceBoundaryTests(unittest.TestCase):
             generate_function=generate,
         )
 
-        self.assertEqual(
-            "ready", asyncio.run(generator.generate("hello", max_tokens=8))
-        )
+        self.assertEqual("ready", asyncio.run(generator.generate("hello", max_tokens=8)))
         self.assertEqual("formatted-chat-prompt", generated[0]["prompt"])
         self.assertEqual([{"role": "user", "content": "hello"}], calls[0]["messages"])
         self.assertTrue(calls[0]["add_generation_prompt"])

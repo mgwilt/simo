@@ -59,16 +59,14 @@ class GepardTTSService(TTSService):
             await self._session.close()
             self._session = None
 
-    async def run_tts(  # pyright: ignore[reportIncompatibleMethodOverride]
+    async def run_tts(
         self,
         text: str,
         context_id: str,
-    ) -> AsyncGenerator[Frame, None]:
+    ) -> AsyncGenerator[Frame | None, None]:
         try:
             if self._session is None:
-                raise RuntimeError(
-                    "HTTP session is not initialized; call start() before run_tts()"
-                )
+                raise RuntimeError("HTTP session is not initialized; call start() before run_tts()")
             request = GepardRequest(text, self._reference, self._cfg_scale)
             async with self._session.post(
                 f"{self._base_url}/synthesize",
@@ -85,9 +83,7 @@ class GepardTTSService(TTSService):
             audio = decode_gepard_wav(wav_data)
             await self.start_tts_usage_metrics(text)
             first = True
-            for chunk in iter_pcm_chunks(
-                audio, chunk_duration_ms=self._chunk_duration_ms
-            ):
+            for chunk in iter_pcm_chunks(audio, chunk_duration_ms=self._chunk_duration_ms):
                 if first:
                     await self.stop_ttfb_metrics()
                     first = False

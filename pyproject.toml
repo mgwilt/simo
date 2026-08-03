@@ -24,8 +24,9 @@ inference = [
     "parakeet-mlx>=0.5.2",
 ]
 dev = [
-    "pyright==1.1.411",
-    "ruff==0.12.11",
+    "basedpyright==1.39.9",
+    "ruff==0.14.14",
+    "ty==0.0.14",
 ]
 
 [build-system]
@@ -41,12 +42,123 @@ package = true
 [tool.uv.sources]
 pipecat-ai = { path = "vendor/pipecat" }
 
-[tool.pyright]
-include = ["python/simo"]
-exclude = ["vendor"]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-
 [tool.ruff]
 extend-exclude = ["vendor"]
 target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+ignore = [
+    # Ruff's formatter owns these layout rules.
+    "COM812",
+    "E501",
+    "ISC001",
+    # Repository licensing is not enforced through per-file notices.
+    "CPY001",
+    # Documentation quality is reviewed separately from static defect checks.
+    "D",
+    "DOC",
+    # These exception-shape rules add indirection without improving safety here.
+    "EM101",
+    "EM102",
+    "TRY003",
+    # Dynamic framework/model boundaries and lazy optional imports are checked
+    # by the type checkers and focused tests rather than style-only lint rules.
+    "ANN401",
+    "BLE001",
+    "PLC0415",
+    "TRY301",
+    # Relative package imports are permitted, and these complexity preferences
+    # do not establish correctness by themselves.
+    "ARG",
+    "ASYNC240",
+    "C901",
+    "DTZ011",
+    "FBT",
+    "FURB",
+    "PLR0912",
+    "TID252",
+    "PLR0913",
+    "PLR0911",
+    "PLR0914",
+    "PLR0915",
+    "PLR2004",
+    "PLR6201",
+    "PLR6301",
+    "RET504",
+    "SIM",
+    "TC",
+    "TRY300",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ANN", # The type checkers still cover inferred test types.
+    "ARG", # Test doubles intentionally accept protocol-compatible arguments.
+    "FBT", # Test doubles use compact boolean controls.
+    "INP001", # Tests are discovered by path, not imported as a package.
+    "PLR2004", # Expected literals are the point of assertions.
+    "PT", # Simo deliberately uses unittest rather than pytest style.
+    "S101", # Assertions are executable specifications in tests.
+    "S106", # Credential-shaped values are synthetic fixtures.
+    "SLF001", # Focused white-box tests verify lifecycle invariants.
+    "RUF029", # Async tests may exercise scheduling through fakes.
+    "PLC2701", # White-box tests intentionally import focused private helpers.
+    "PYI034", # Context-manager test doubles return their concrete self type.
+    "S108", # Synthetic paths never reach production file operations.
+]
+"python/simo/adapters/pipecat/local_audio.py" = ["SLF001"]
+"python/simo/cli.py" = ["T201"]
+"python/simo/doctor.py" = ["S404", "S603", "PLW1510"]
+"python/simo/gepard.py" = ["S310"]
+"scripts/**/*.py" = ["T201"]
+"scripts/build_native.py" = ["S404", "S603"]
+"scripts/knowledge/tests/**/*.py" = ["ANN", "PT", "S101"]
+"scripts/setup_live_data.py" = ["EXE001", "S310"]
+"scripts/setup_models.py" = ["EXE001"]
+"tests/python/test_cli.py" = ["S404", "S603"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ty.environment]
+python-version = "3.11"
+python-platform = "all"
+
+[tool.ty.src]
+include = ["python/simo", "tests/python", "scripts"]
+exclude = ["vendor"]
+
+[tool.ty.rules]
+# MLX is an optional runtime extra and is intentionally absent from the core
+# development environment. Its boundary is covered by live inference checks.
+unresolved-import = "ignore"
+# ty 0.0.14 reports Pipecat's identical AsyncGenerator override annotation as
+# incompatible; BasedPyright checks this boundary without the false positive.
+invalid-method-override = "ignore"
+
+[tool.basedpyright]
+include = ["python/simo", "tests/python", "scripts"]
+exclude = ["vendor"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+baselineFile = ".basedpyright-baseline.json"
+
+# Ruff owns these non-type diagnostics. Keeping one owner avoids duplicate
+# suppressions while BasedPyright enforces the complete type surface.
+reportUnusedImport = "none"
+reportUnusedVariable = "none"
+reportUnusedFunction = "none"
+reportPrivateUsage = "none"
+reportUnnecessaryCast = "none"
+reportMissingTypeStubs = "none"
+
+# Strict mode rejects inferred Unknown. These BasedPyright-only rules also
+# reject deliberate Any escape hatches.
+reportAny = "error"
+reportExplicitAny = "error"
+reportUnnecessaryTypeIgnoreComment = "error"

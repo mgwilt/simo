@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 import queue
 import threading
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator, Protocol
+from typing import Any, Protocol
 
 
 class SpeechRecognizer(Protocol):
@@ -55,9 +55,7 @@ class ParakeetMLXRecognizer:
         model = self._load_model()
         required_rate = int(model.preprocessor_config.sample_rate)
         if sample_rate != required_rate:
-            raise ValueError(
-                f"Parakeet expects {required_rate} Hz PCM, received {sample_rate} Hz"
-            )
+            raise ValueError(f"Parakeet expects {required_rate} Hz PCM, received {sample_rate} Hz")
         samples = np.frombuffer(pcm_s16le, dtype="<i2").astype(np.float32) / 32768.0
         array_factory = self._array_factory
         if array_factory is None:
@@ -161,13 +159,9 @@ class MLXAudioSynthesizer:
     async def synthesize(self, text: str) -> AsyncIterator[AudioChunk]:
         if not text.strip():
             raise ValueError("TTS text must not be empty")
-        chunks: queue.Queue[AudioChunk | Exception | object] = queue.Queue(
-            self._queue_capacity
-        )
+        chunks: queue.Queue[AudioChunk | Exception | object] = queue.Queue(self._queue_capacity)
         cancelled = threading.Event()
-        producer = asyncio.create_task(
-            asyncio.to_thread(self._produce, text, chunks, cancelled)
-        )
+        producer = asyncio.create_task(asyncio.to_thread(self._produce, text, chunks, cancelled))
         try:
             while True:
                 item = await asyncio.to_thread(chunks.get)

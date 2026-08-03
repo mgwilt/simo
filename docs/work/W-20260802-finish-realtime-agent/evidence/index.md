@@ -10,3 +10,5 @@
 - [E-008 — model download checkpoint](E-008-model-download-checkpoint.md)
 - [E-009 — real MLX model pipeline](E-009-real-mlx-model-pipeline.md)
 - [E-010 — reproducible completion gates](E-010-reproducible-completion-gates.md)
+- [E-011 — strict static regression gates](E-011-strict-static-regression-gates.md)
+- [E-012 — synthetic Silero and playback echo](E-012-synthetic-silero-and-echo.md)

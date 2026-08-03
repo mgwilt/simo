@@ -15,6 +15,7 @@ os.environ.setdefault(
 
 from pipecat.frames.frames import (
     ErrorFrame,
+    Frame,
     InterimTranscriptionFrame,
     TranscriptionFrame,
     TTSAudioRawFrame,
@@ -30,9 +31,7 @@ class RecordingSink:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, bool]] = []
 
-    def enqueue_transcript(
-        self, speaker: str, text: str, is_final: bool = True
-    ) -> EnqueueResult:
+    def enqueue_transcript(self, speaker: str, text: str, is_final: bool = True) -> EnqueueResult:
         self.calls.append((speaker, text, is_final))
         return EnqueueResult(True, len(self.calls))
 
@@ -113,7 +112,7 @@ class PipecatAdapterTests(unittest.TestCase):
             chunk_duration_ms=20,
         )
 
-        async def collect() -> list[object]:
+        async def collect() -> list[Frame | None]:
             return [frame async for frame in service.run_tts("hello", "context-1")]
 
         frames = asyncio.run(collect())
@@ -122,9 +121,10 @@ class PipecatAdapterTests(unittest.TestCase):
             session.requests,
         )
         self.assertTrue(frames)
-        self.assertTrue(all(isinstance(frame, TTSAudioRawFrame) for frame in frames))
-        self.assertEqual(expected_pcm, b"".join(frame.audio for frame in frames))
-        self.assertTrue(all(frame.context_id == "context-1" for frame in frames))
+        audio_frames = [frame for frame in frames if isinstance(frame, TTSAudioRawFrame)]
+        self.assertEqual(len(frames), len(audio_frames))
+        self.assertEqual(expected_pcm, b"".join(frame.audio for frame in audio_frames))
+        self.assertTrue(all(frame.context_id == "context-1" for frame in audio_frames))
 
     def test_gepard_service_bounds_http_error(self) -> None:
         session = FakeSession(FakeResponse(status=503, body=b"", text="unavailable"))
@@ -133,13 +133,14 @@ class PipecatAdapterTests(unittest.TestCase):
             aiohttp_session=session,  # type: ignore[arg-type]
         )
 
-        async def collect() -> list[object]:
+        async def collect() -> list[Frame | None]:
             return [frame async for frame in service.run_tts("hello", "context-1")]
 
         frames = asyncio.run(collect())
         self.assertEqual(1, len(frames))
-        self.assertIsInstance(frames[0], ErrorFrame)
-        self.assertIn("503", frames[0].error)
+        error_frames = [frame for frame in frames if isinstance(frame, ErrorFrame)]
+        self.assertEqual(1, len(error_frames))
+        self.assertIn("503", error_frames[0].error)
 
 
 if __name__ == "__main__":

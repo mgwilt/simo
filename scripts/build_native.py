@@ -90,9 +90,7 @@ def _tool(name: str) -> str:
         return resolved
     xcrun = shutil.which("xcrun")
     if xcrun:
-        result = subprocess.run(
-            [xcrun, "--find", name], check=True, capture_output=True, text=True
-        )
+        result = subprocess.run([xcrun, "--find", name], check=True, capture_output=True, text=True)
         return result.stdout.strip()
     raise RuntimeError(f"required compiler not found: {name}")
 

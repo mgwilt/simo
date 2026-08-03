@@ -18,9 +18,7 @@ class NativeContextTests(unittest.TestCase):
             self.assertEqual(2, engine.tick())
             snapshot = engine.snapshot()
             self.assertEqual(1, snapshot["revision"])
-            self.assertEqual(
-                ["second", "third"], [item["text"] for item in snapshot["items"]]
-            )
+            self.assertEqual(["second", "third"], [item["text"] for item in snapshot["items"]])
             stats = engine.stats()
             self.assertEqual(3, stats.accepted)
             self.assertEqual(1, stats.dropped)

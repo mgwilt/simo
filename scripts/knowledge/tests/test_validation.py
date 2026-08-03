@@ -6,7 +6,6 @@ from pathlib import Path
 
 from scripts.validate_docs import validate_bundle
 
-
 VALID_CONCEPT = """---
 type: Architecture Concept
 title: Test concept
@@ -80,9 +79,7 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("SIMO023", {item.code for item in report.errors})
 
     def test_work_plan_requires_canonical_bundle_path(self) -> None:
-        concept = VALID_CONCEPT.replace(
-            "type: Architecture Concept", "type: Work Plan"
-        ).replace(
+        concept = VALID_CONCEPT.replace("type: Architecture Concept", "type: Work Plan").replace(
             "  owner: unassigned\n",
             "  owner: process:test\n"
             "  work:\n"

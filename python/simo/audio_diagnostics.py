@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import numpy as np
 
@@ -92,13 +93,8 @@ def calibration_result(
     speech = summarize_levels(speech_values)
     ambient_ceiling = ambient.peak_rms
     speech_level = speech.p95_rms
-    separated = (
-        speech_level >= ambient.p95_rms * 1.15
-        and speech_level - ambient_ceiling >= 0.002
-    )
-    recommendation = (
-        round((ambient_ceiling + speech_level) / 2, 6) if separated else None
-    )
+    separated = speech_level >= ambient.p95_rms * 1.15 and speech_level - ambient_ceiling >= 0.002
+    recommendation = round((ambient_ceiling + speech_level) / 2, 6) if separated else None
     return {
         "schema_version": 1,
         "ready": separated,
@@ -107,9 +103,7 @@ def calibration_result(
         "speech": asdict(speech),
         "configured_start_rms": configured_start_rms,
         "recommended_start_rms": recommendation,
-        "environment": (
-            f"SIMO_VAD_START_RMS={recommendation}" if recommendation else None
-        ),
+        "environment": (f"SIMO_VAD_START_RMS={recommendation}" if recommendation else None),
         "detail": (
             "sustained speech energy is separated from peak ambient energy"
             if separated
@@ -131,9 +125,7 @@ def collect_interactive_levels(
     if min(ambient_blocks, speech_blocks, onset_timeout_blocks) <= 0:
         raise ValueError("interactive calibration bounds must be positive")
     if speech_blocks < 3:
-        raise ValueError(
-            "interactive calibration requires at least three speech blocks"
-        )
+        raise ValueError("interactive calibration requires at least three speech blocks")
     ambient = [read_rms() for _ in range(ambient_blocks)]
     ambient_ceiling = summarize_levels(ambient).p95_rms
     onset_trigger = max(ambient_ceiling * 1.35, ambient_ceiling + 0.002)

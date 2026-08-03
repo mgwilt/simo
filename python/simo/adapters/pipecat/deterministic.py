@@ -13,8 +13,8 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMTextFrame,
     StartFrame,
-    TTSAudioRawFrame,
     TranscriptionFrame,
+    TTSAudioRawFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.processors.frame_processor import (
@@ -47,9 +47,7 @@ class DeterministicTextInference(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
-        if direction is FrameDirection.DOWNSTREAM and isinstance(
-            frame, SemanticTurnFrame
-        ):
+        if direction is FrameDirection.DOWNSTREAM and isinstance(frame, SemanticTurnFrame):
             metrics = self._runtime_metrics
             token = metrics.start_stage("text_inference") if metrics else None
             try:
@@ -167,7 +165,7 @@ async def run_deterministic_pipeline(
     setup = FrameProcessorSetup(
         clock=clock,
         task_manager=TaskManager(),
-        pipeline_worker=cast(Any, object()),
+        pipeline_worker=cast("Any", object()),
         observer=PipecatSemanticObserver(bridge=bridge),
     )
     frames = [

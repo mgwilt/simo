@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 import threading
 import unittest
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 
@@ -14,7 +16,6 @@ os.environ.setdefault(
 )
 
 from pipecat.frames.frames import ErrorFrame, TTSAudioRawFrame
-
 from simo.adapters.pipecat.qwen_tts import QwenMLXTTSService
 from simo.inference import AudioChunk, MLXAudioSynthesizer
 from simo.operations import RuntimeMetrics
@@ -25,7 +26,7 @@ class FakeQwenModel:
         self.calls: list[dict[str, object]] = []
         self.closed = threading.Event()
 
-    def generate(self, **kwargs: object):  # type: ignore[no-untyped-def]
+    def generate(self, **kwargs: object):
         self.calls.append(kwargs)
         try:
             yield SimpleNamespace(
@@ -38,7 +39,7 @@ class FakeQwenModel:
 
 
 class FailingSynthesizer:
-    async def synthesize(self, text: str):  # type: ignore[no-untyped-def]
+    async def synthesize(self, text: str):
         if text == "invalid":
             yield AudioChunk(b"\x00", 24_000)
             return
@@ -84,7 +85,7 @@ class QwenTTSBoundaryTests(unittest.IsolatedAsyncioTestCase):
             queue_capacity=1,
             model_loader=lambda path: model,
         )
-        stream = synthesizer.synthesize("interrupt me")
+        stream = cast(AsyncGenerator[AudioChunk, None], synthesizer.synthesize("interrupt me"))
 
         first = await anext(stream)
         self.assertTrue(first.pcm_s16le)
@@ -106,10 +107,11 @@ class QwenTTSBoundaryTests(unittest.IsolatedAsyncioTestCase):
         frames = [frame async for frame in service.run_tts("hello", "turn-1")]
 
         self.assertEqual(2, len(frames))
-        self.assertTrue(all(isinstance(frame, TTSAudioRawFrame) for frame in frames))
-        self.assertTrue(all(frame.context_id == "turn-1" for frame in frames))
-        self.assertTrue(all(frame.sample_rate == 24_000 for frame in frames))
-        self.assertTrue(all(frame.num_channels == 1 for frame in frames))
+        audio_frames = [frame for frame in frames if isinstance(frame, TTSAudioRawFrame)]
+        self.assertEqual(len(frames), len(audio_frames))
+        self.assertTrue(all(frame.context_id == "turn-1" for frame in audio_frames))
+        self.assertTrue(all(frame.sample_rate == 24_000 for frame in audio_frames))
+        self.assertTrue(all(frame.num_channels == 1 for frame in audio_frames))
         tts_metrics = metrics.snapshot()["stages"]["tts"]
         self.assertEqual(1, tts_metrics["calls"])
         self.assertIsNotNone(tts_metrics["first_output_ms"])
@@ -122,8 +124,9 @@ class QwenTTSBoundaryTests(unittest.IsolatedAsyncioTestCase):
             failed = QwenMLXTTSService(FailingSynthesizer())
             error_frames = [frame async for frame in failed.run_tts(text, "turn-error")]
             self.assertEqual(1, len(error_frames))
-            self.assertIsInstance(error_frames[0], ErrorFrame)
-            self.assertIn(message, error_frames[0].error)
+            errors = [frame for frame in error_frames if isinstance(frame, ErrorFrame)]
+            self.assertEqual(1, len(errors))
+            self.assertIn(message, errors[0].error)
 
 
 if __name__ == "__main__":
