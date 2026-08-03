@@ -4,7 +4,7 @@ title: Finish Simo execution
 description: Orders research, core integration, inference, knowledge, operations, and live acceptance milestones.
 tags: [work, execution, milestones]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:40:51Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:47:24Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-EXECUTION
@@ -21,8 +21,8 @@ simo:
 | T-002 | Implement typed configuration, preflight, lifecycle, and headless entrypoint | A-001, A-009 | complete |
 | T-003 | Implement Pipecat context-snapshot injection and deterministic headless loop | A-002, A-003; partial A-004 | complete |
 | T-004 | Implement repository OKF-to-Flecs knowledge graph and refresh | A-005 | complete |
-| T-005 | Implement selected open-source STT and text inference adapters | A-006 | active |
-| T-006 | Implement and harden the selected Mac-native TTS cancellation and interruption path | A-004, A-007 | pending |
+| T-005 | Implement selected open-source STT and text inference adapters | Partial A-006; live model proof pending | complete |
+| T-006 | Implement and harden the selected Mac-native TTS cancellation and interruption path | A-004, A-007 | active |
 | T-007 | Add observability, privacy defaults, shutdown, and operator documentation | A-009, A-010 | pending |
 | T-008 | Prove live three-turn interruptible voice conversation on the declared Mac | A-007, A-008 | pending |
 | T-009 | Promote durable knowledge, independently verify, and close | A-010, A-011 | pending |
