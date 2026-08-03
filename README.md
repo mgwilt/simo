@@ -61,15 +61,15 @@ uv run simo live
 
 `prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; and then executes real STT → Flecs context injection → real text → real TTS through Pipecat. It writes only an ignored synthetic `.artifacts/model-proof/tts.wav` and does not open the microphone or speaker.
 
-If live mode does not detect a quiet headset microphone, calibrate it before changing the typed threshold:
+Use the aggregate-only microphone calibrator to diagnose input level separation:
 
 ```sh
 uv run simo calibrate-mic
 ```
 
-Wait quietly until you hear one tone, then speak normally until you hear two tones. Simo measures the ambient phase, detects speech onset, and ends the speaking phase itself, so no visual timing or interaction is required. The command retains only aggregate RMS values, never audio or transcripts. It prints a `SIMO_VAD_START_RMS=...` recommendation only when speech is clearly separated from ambient sound; otherwise it fails closed and asks you to check mute and retry.
+Wait quietly until you hear one tone, then speak normally until you hear two tones. Simo measures the ambient phase, detects speech onset, and ends the speaking phase itself, so no visual timing or interaction is required. The command retains only aggregate RMS values, never audio or transcripts. Live mode uses Silero neural VAD rather than this RMS recommendation.
 
-The live pipeline is local microphone → bounded energy utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, and the native Flecs owner.
+The live pipeline is local microphone → bounded Silero utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, Silero, and the native Flecs owner.
 
 Environment overrides are parsed once into an immutable configuration:
 

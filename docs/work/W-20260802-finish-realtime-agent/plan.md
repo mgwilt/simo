@@ -19,11 +19,11 @@ simo:
     priority: p1
     accountable: codex/gpt-5.6-sol
     created_at: 2026-08-03T00:02:13Z
-    updated_at: 2026-08-03T02:17:32Z
+    updated_at: 2026-08-03T02:49:00Z
     depends_on: [W-20260802-semantic-context-spine]
     knowledge_refs: [architecture/semantic-context-spine, interfaces/gepard-tts, governance/DOC-0001-documentation-and-work-management]
     write_paths: [README.md, CMakeLists.txt, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
-    next_action: Calibrate the available Arctis microphone for detected speech, then run and capture the three-turn human interruption acceptance.
+    next_action: Add application-controlled Silero confidence calibration or input conditioning for the Arctis stream, then reduce response latency and rerun the three-turn human interruption acceptance.
     blocker: null
 ---
 # Finish the Simo realtime agent

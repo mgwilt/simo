@@ -27,6 +27,9 @@ sources:
   - id: gemma-terms
     resource: https://ai.google.dev/gemma/terms
     title: Gemma terms of use
+  - id: pipecat-silero
+    resource: https://docs.pipecat.ai/server/services/vad/silero
+    title: Pipecat Silero VAD documentation
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-DECISIONS
@@ -75,13 +78,17 @@ Pipecat observers may run ahead of ordered frame processing. They therefore enqu
 
 Simo emits fixed-schema aggregate lifecycle, queue, error-count, and timing events. The event API does not accept transcript, prompt, response, audio, model-output, or exception-message fields. User-requested command results remain a separate output channel and may contain explicitly supplied synthetic content.
 
-## D-010: Start local turn detection with a replaceable bounded energy gate
+## D-010: Start local turn detection with a replaceable bounded energy gate (superseded)
 
-The first macOS live path uses deterministic normalized-RMS start/stop detection with typed thresholds, pre-roll, and a maximum utterance duration. It emits Pipecat interruption frames but does not claim semantic turn detection, echo cancellation, speaker identity, or noise robustness. The boundary remains replaceable without changing STT, Flecs, or inference contracts.
+The first macOS live path used deterministic normalized-RMS start/stop detection with typed thresholds, pre-roll, and a maximum utterance duration. Human live testing found the gate unstable on the target headset. `D-012` replaces the runtime detector while retaining this aggregate RMS path only as an application-controlled diagnostic.
 
 ## D-011: Model installation is explicit, immutable, and fail-closed
 
 The selected repositories are pinned to full revisions and model setup prints a size and disk-space plan without downloading by default. A separate `--accept-download` flag authorizes the transfer. Doctor accepts a local model only after its required files exist and an atomic completion marker matches both the configured repository and revision. A partially downloaded, substituted, or subsequently reconfigured model therefore cannot make live preflight ready.
+
+## D-012: Use Silero for runtime voice activity detection
+
+Runtime turn boundaries use Pipecat's bundled Silero ONNX analyzer with bounded pre-roll, maximum utterance duration, interruption frames, and aggregate confidence telemetry.[^pipecat-silero] RMS calibration remains a privacy-safe input diagnostic, not runtime VAD. The target Arctis stream still needs application-controlled confidence calibration or input conditioning before live acceptance; lowering the neural threshold without measured ambient/speech separation is not accepted as completion evidence.
 
 [^mlx-audio]: MLX-Audio repository and examples, checked 2026-08-02: Apple Silicon speech generation and streaming interfaces.
 [^qwen-tts-mlx]: Qwen3-TTS 0.6B CustomVoice 6-bit MLX model card, checked 2026-08-02: MLX-Audio conversion, model size, license metadata, and built-in voices.
@@ -90,3 +97,4 @@ The selected repositories are pinned to full revisions and model setup prints a 
 [^mlx-lm]: MLX-LM repository, checked 2026-08-02: Apple Silicon text-generation runtime and streaming API.
 [^qwen-text-mlx]: Qwen3.5 4B 4-bit MLX model card, checked 2026-08-02: current MLX conversion and upstream Apache-2.0 lineage.
 [^gemma-terms]: Gemma terms of use, checked 2026-08-02: separate use and distribution terms for covered Gemma releases.
+[^pipecat-silero]: Pipecat Silero VAD documentation, checked 2026-08-02: local ONNX voice confidence analysis and configurable temporal thresholds.
