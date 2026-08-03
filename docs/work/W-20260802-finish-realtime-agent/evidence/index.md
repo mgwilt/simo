@@ -1,3 +1,3 @@
 # Evidence
 
-Evidence records will be added by acceptance claim, not as raw logs or chronological transcripts.
+- [E-001 — macOS entrypoint and preflight](E-001-macos-entrypoint.md)

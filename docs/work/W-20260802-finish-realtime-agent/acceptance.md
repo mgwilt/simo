@@ -4,7 +4,7 @@ title: Finished Simo acceptance
 description: Defines the executable and live evidence required to complete the Simo realtime-agent product goal.
 tags: [work, acceptance, product, evidence]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:08:12Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:20:54Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-ACCEPTANCE
@@ -15,7 +15,7 @@ simo:
 ---
 # Acceptance
 
-- [ ] **A-001 — Reproducible macOS entrypoint:** A clean-checkout setup and `simo doctor`-style preflight truthfully report Apple hardware, models, and services, and a documented command starts headless mode.
+- [x] **A-001 — Reproducible macOS entrypoint:** A clean-checkout setup and `simo doctor`-style preflight truthfully report Apple hardware, models, and services, and a documented command starts headless mode. Proven by `E-001` at `800e5d0`.
 - [ ] **A-002 — End-to-end headless loop:** An executable acceptance test drives synthetic audio/transcript input through Pipecat, Flecs update, context snapshot injection, text inference, the replaceable TTS contract, audio frames, and clean shutdown.
 - [ ] **A-003 — Context semantics:** Tests prove snapshot revision selection, bounded age/size, deterministic formatting, no live entity handles across the boundary, and context injection exactly once per inference turn.
 - [ ] **A-004 — Observer/backpressure:** Tests prove transcript deduplication, queue overload policy, counters, non-blocking observer work, cancellation, and bounded failure propagation.
