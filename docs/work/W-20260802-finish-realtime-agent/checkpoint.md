@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:31:00Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:40:51Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -21,6 +21,7 @@ simo:
 - Completed: `T-001` selected the MLX-native Qwen3-TTS 0.6B CustomVoice 6-bit, Parakeet TDT 0.6B v3, and Qwen3.5 4B 4-bit defaults for the Apple M3 Ultra target.
 - Completed: `T-002` added the installed `simo` command, typed environment configuration, a truthful two-mode preflight, a system-compiler native build, and the deterministic headless lifecycle at `800e5d0`.
 - Completed: `T-003` added the causal observer mailbox, ordered Flecs promotion, immutable revisioned context frames, bounded formatting/freshness, deterministic text and PCM TTS providers, and a real Pipecat pipeline at `6ea58b9`.
-- Active: `T-004` validated repository OKF projection into typed Flecs runtime graph entities and incremental refresh.
+- Completed: `T-004` added validation-before-mutation, two-pass concept/link loading, typed Flecs `references` pairs, provenance/freshness components, private runtime identities, immutable graph snapshots, and incremental removal at `0a2b290`.
+- Active: `T-005` replaceable Parakeet MLX STT and Qwen3.5 MLX-LM text inference adapters.
 - Blocker: none.
-- Next action: define the native runtime knowledge components/relations and a validated Python loader that incrementally refreshes them without conflating OKF paths with Flecs IDs.
+- Next action: lock package-compatible MLX runtimes without downloading weights, then implement and test adapter contracts against fake backends before live model execution.
