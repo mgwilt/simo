@@ -54,10 +54,7 @@ class KnowledgeProjectionTests(unittest.TestCase):
                 "governance/DOC-0001-documentation-and-work-management",
                 "architecture/semantic-context-spine",
             ),
-            {
-                (link.source_okf_id, link.target_okf_id)
-                for link in bundle.references
-            },
+            {(link.source_okf_id, link.target_okf_id) for link in bundle.references},
         )
 
     def test_refresh_projects_and_removes_stale_runtime_entities(self) -> None:
@@ -92,13 +89,10 @@ class KnowledgeProjectionTests(unittest.TestCase):
                 self.assertEqual(0, engine.knowledge_snapshot()["revision"])
 
     def _write_bundle(self, root: Path, *, include_second: bool) -> None:
-        second_index = (
-            "- [Two](two.md) - A second concept.\n" if include_second else ""
-        )
+        second_index = "- [Two](two.md) - A second concept.\n" if include_second else ""
         root.joinpath("index.md").write_text(
             '---\nokf_version: "0.2"\n---\n# Fixture\n\n'
-            "- [One](one.md) - A first concept.\n"
-            + second_index,
+            "- [One](one.md) - A first concept.\n" + second_index,
             encoding="utf-8",
         )
         root.joinpath("one.md").write_text(

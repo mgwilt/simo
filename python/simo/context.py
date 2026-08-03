@@ -337,7 +337,9 @@ class NativeContextEngine:
         function = self._library.simo_context_engine_knowledge_snapshot_json
         required = int(function(handle, None, 0))
         if required <= 1:
-            raise RuntimeError("native knowledge graph returned an invalid snapshot size")
+            raise RuntimeError(
+                "native knowledge graph returned an invalid snapshot size"
+            )
         buffer = ctypes.create_string_buffer(required)
         written = int(function(handle, buffer, len(buffer)))
         if written != required:

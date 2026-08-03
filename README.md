@@ -117,8 +117,12 @@ See [runtime operations](docs/operations/runtime-observability.md) for the schem
 ## Development checks
 
 ```sh
+uv sync --extra runtime --extra inference --extra dev
 uv run python scripts/build_native.py
 uv run python -m unittest discover -s tests/python -v
+uv run pyright
+uv run ruff check python/simo tests/python scripts
+uv run ruff format --check python/simo tests/python scripts
 uv run python scripts/validate_docs.py
 uv run python -m unittest discover -s scripts/knowledge/tests -v
 git diff --check

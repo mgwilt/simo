@@ -49,14 +49,14 @@ class LocalSTTProcessor(FrameProcessor):
             try:
                 text = await self._recognizer.transcribe(frame.audio, frame.sample_rate)
             except Exception as error:
-                if token:
+                if metrics is not None and token is not None:
                     metrics.finish_stage(token, error=True)
                 await self.push_frame(
                     ErrorFrame(error=f"local STT failed: {error}", exception=error),
                     direction,
                 )
                 return
-            if token:
+            if metrics is not None and token is not None:
                 metrics.finish_stage(token)
             if text:
                 await self.push_frame(
@@ -105,7 +105,7 @@ class LocalTextInferenceProcessor(FrameProcessor):
                     max_tokens=self._max_tokens,
                 )
             except Exception as error:
-                if token:
+                if metrics is not None and token is not None:
                     metrics.finish_stage(token, error=True)
                 await self.push_frame(
                     ErrorFrame(
@@ -114,7 +114,7 @@ class LocalTextInferenceProcessor(FrameProcessor):
                     direction,
                 )
                 return
-            if token:
+            if metrics is not None and token is not None:
                 metrics.finish_stage(token)
             await self.push_frame(LLMFullResponseStartFrame(), direction)
             await self.push_frame(LLMTextFrame(text=response), direction)

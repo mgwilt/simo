@@ -63,10 +63,10 @@ class DeterministicTextInference(FrameProcessor):
                 await self.push_frame(LLMTextFrame(text=response), direction)
                 await self.push_frame(LLMFullResponseEndFrame(), direction)
             except Exception:
-                if token:
+                if metrics is not None and token is not None:
                     metrics.finish_stage(token, error=True)
                 raise
-            if token:
+            if metrics is not None and token is not None:
                 metrics.finish_stage(token)
             return
         await self.push_frame(frame, direction)
@@ -102,13 +102,13 @@ class DeterministicTTS(FrameProcessor):
                     ),
                     direction,
                 )
-                if token:
+                if metrics is not None and token is not None:
                     metrics.first_output(token)
             except Exception:
-                if token:
+                if metrics is not None and token is not None:
                     metrics.finish_stage(token, error=True)
                 raise
-            if token:
+            if metrics is not None and token is not None:
                 metrics.finish_stage(token)
 
 

@@ -109,7 +109,8 @@ class MLXTextGenerator:
                 from mlx_lm import load
 
                 loader = load
-            self._loaded = loader(str(self._model_path))
+            loaded = loader(str(self._model_path))
+            self._loaded = (loaded[0], loaded[1])
         generate_function = self._generate_function
         if generate_function is None:
             from mlx_lm import generate
@@ -218,8 +219,9 @@ class MLXAudioSynthesizer:
             if loader is None:
                 from mlx_audio.tts.utils import load_model
 
-                loader = load_model
-            self._model = loader(str(self._model_path))
+                self._model = load_model(self._model_path)
+            else:
+                self._model = loader(str(self._model_path))
         return self._model
 
     @staticmethod

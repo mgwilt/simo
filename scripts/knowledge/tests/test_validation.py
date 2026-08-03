@@ -26,7 +26,9 @@ simo:
 
 
 class ValidationTests(unittest.TestCase):
-    def make_bundle(self, concept: str = VALID_CONCEPT) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+    def make_bundle(
+        self, concept: str = VALID_CONCEPT
+    ) -> tuple[tempfile.TemporaryDirectory[str], Path]:
         temporary = tempfile.TemporaryDirectory()
         repository = Path(temporary.name)
         docs = repository / "docs"
@@ -66,7 +68,9 @@ class ValidationTests(unittest.TestCase):
         temporary, repository = self.make_bundle()
         self.addCleanup(temporary.cleanup)
         docs = repository / "docs"
-        (docs / "other.md").write_text(VALID_CONCEPT.replace("Test concept", "Other concept"), encoding="utf-8")
+        (docs / "other.md").write_text(
+            VALID_CONCEPT.replace("Test concept", "Other concept"), encoding="utf-8"
+        )
         (docs / "index.md").write_text(
             (docs / "index.md").read_text(encoding="utf-8")
             + "- [Other](other.md) - Another concept.\n",
@@ -76,7 +80,9 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("SIMO023", {item.code for item in report.errors})
 
     def test_work_plan_requires_canonical_bundle_path(self) -> None:
-        concept = VALID_CONCEPT.replace("type: Architecture Concept", "type: Work Plan").replace(
+        concept = VALID_CONCEPT.replace(
+            "type: Architecture Concept", "type: Work Plan"
+        ).replace(
             "  owner: unassigned\n",
             "  owner: process:test\n"
             "  work:\n"

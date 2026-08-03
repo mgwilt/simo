@@ -85,7 +85,9 @@ def parse_markdown(path: Path, bundle_root: Path) -> ParsedMarkdown:
             raise ValueError("frontmatter must be a YAML mapping")
         metadata = loaded or {}
         body = raw[match.end() :]
-    return ParsedMarkdown(path, path.relative_to(bundle_root).as_posix(), metadata, body, raw)
+    return ParsedMarkdown(
+        path, path.relative_to(bundle_root).as_posix(), metadata, body, raw
+    )
 
 
 def _valid_actor(value: Any) -> bool:
@@ -111,12 +113,16 @@ def _validate_actor_event(
         report.add(relative, code, "error", f"{name} must be a mapping")
         return
     if not _valid_actor(value.get("by")):
-        report.add(relative, code, "error", f"{name}.by must use the OKF actor convention")
+        report.add(
+            relative, code, "error", f"{name}.by must use the OKF actor convention"
+        )
     if not _valid_datetime(value.get("at")):
         report.add(relative, code, "error", f"{name}.at must be an ISO 8601 datetime")
 
 
-def _validate_reserved(report: ValidationReport, parsed: ParsedMarkdown, bundle_root: Path) -> None:
+def _validate_reserved(
+    report: ValidationReport, parsed: ParsedMarkdown, bundle_root: Path
+) -> None:
     if parsed.path.name == "index.md":
         if parsed.path == bundle_root / "index.md":
             if parsed.metadata != {"okf_version": "0.2"}:
@@ -127,7 +133,12 @@ def _validate_reserved(report: ValidationReport, parsed: ParsedMarkdown, bundle_
                     'root index frontmatter must contain only okf_version: "0.2"',
                 )
         elif parsed.metadata is not None:
-            report.add(parsed.relative, "OKF002", "error", "subdirectory index.md has frontmatter")
+            report.add(
+                parsed.relative,
+                "OKF002",
+                "error",
+                "subdirectory index.md has frontmatter",
+            )
         return
 
     if parsed.metadata is not None:
@@ -138,7 +149,9 @@ def _validate_reserved(report: ValidationReport, parsed: ParsedMarkdown, bundle_
         try:
             parsed_dates.append(date.fromisoformat(heading))
         except ValueError:
-            report.add(parsed.relative, "OKF004", "error", f"invalid log date {heading}")
+            report.add(
+                parsed.relative, "OKF004", "error", f"invalid log date {heading}"
+            )
     if parsed_dates != sorted(parsed_dates, reverse=True):
         report.add(parsed.relative, "OKF005", "error", "log dates are not newest first")
 
@@ -146,22 +159,37 @@ def _validate_reserved(report: ValidationReport, parsed: ParsedMarkdown, bundle_
 def _validate_profile(report: ValidationReport, parsed: ParsedMarkdown) -> None:
     metadata = parsed.metadata or {}
     if not isinstance(metadata.get("type"), str) or not metadata["type"].strip():
-        report.add(parsed.relative, "OKF006", "error", "concept requires a non-empty type")
+        report.add(
+            parsed.relative, "OKF006", "error", "concept requires a non-empty type"
+        )
         return
 
     report.concept_count += 1
     for key in ("title", "description"):
         value = metadata.get(key)
         if not isinstance(value, str) or not value.strip():
-            report.add(parsed.relative, "SIMO001", "error", f"concept requires non-empty {key}")
+            report.add(
+                parsed.relative, "SIMO001", "error", f"concept requires non-empty {key}"
+            )
     description = metadata.get("description")
     if isinstance(description, str) and "\n" in description:
         report.add(parsed.relative, "SIMO002", "error", "description must be one line")
     tags = metadata.get("tags")
-    if not isinstance(tags, list) or not tags or any(not isinstance(tag, str) or not tag for tag in tags):
-        report.add(parsed.relative, "SIMO003", "error", "tags must be a non-empty string list")
+    if (
+        not isinstance(tags, list)
+        or not tags
+        or any(not isinstance(tag, str) or not tag for tag in tags)
+    ):
+        report.add(
+            parsed.relative, "SIMO003", "error", "tags must be a non-empty string list"
+        )
     if metadata.get("status") not in OKF_STATUSES:
-        report.add(parsed.relative, "SIMO004", "error", "status must be draft, stable, or deprecated")
+        report.add(
+            parsed.relative,
+            "SIMO004",
+            "error",
+            "status must be draft, stable, or deprecated",
+        )
 
     generated = metadata.get("generated")
     _validate_actor_event(report, parsed.relative, "SIMO005", "generated", generated)
@@ -169,39 +197,71 @@ def _validate_profile(report: ValidationReport, parsed: ParsedMarkdown) -> None:
     if verified is not None:
         events = verified if isinstance(verified, list) else [verified]
         if not events:
-            report.add(parsed.relative, "SIMO006", "error", "verified must not be an empty list")
+            report.add(
+                parsed.relative,
+                "SIMO006",
+                "error",
+                "verified must not be an empty list",
+            )
         for event in events:
             _validate_actor_event(report, parsed.relative, "SIMO006", "verified", event)
 
     stale_after = metadata.get("stale_after")
     if stale_after is not None:
         try:
-            stale_date = stale_after if isinstance(stale_after, date) else date.fromisoformat(str(stale_after))
+            stale_date = (
+                stale_after
+                if isinstance(stale_after, date)
+                else date.fromisoformat(str(stale_after))
+            )
         except ValueError:
-            report.add(parsed.relative, "SIMO007", "error", "stale_after must be YYYY-MM-DD")
+            report.add(
+                parsed.relative, "SIMO007", "error", "stale_after must be YYYY-MM-DD"
+            )
         else:
             if date.today() >= stale_date:
-                report.add(parsed.relative, "SIMO008", "warning", f"concept is stale as of {stale_date}")
+                report.add(
+                    parsed.relative,
+                    "SIMO008",
+                    "warning",
+                    f"concept is stale as of {stale_date}",
+                )
 
     simo = metadata.get("simo")
     if not isinstance(simo, dict):
-        report.add(parsed.relative, "SIMO009", "error", "concept requires a simo mapping")
+        report.add(
+            parsed.relative, "SIMO009", "error", "concept requires a simo mapping"
+        )
         return
     if simo.get("profile_version") != 1:
-        report.add(parsed.relative, "SIMO010", "error", "simo.profile_version must be 1")
+        report.add(
+            parsed.relative, "SIMO010", "error", "simo.profile_version must be 1"
+        )
     stable_id = simo.get("stable_id")
     if not isinstance(stable_id, str) or not stable_id.strip():
         report.add(parsed.relative, "SIMO011", "error", "simo.stable_id is required")
     if simo.get("authority") not in SIMO_AUTHORITIES:
         report.add(parsed.relative, "SIMO012", "error", "simo.authority is invalid")
     repository_paths = simo.get("repository_paths")
-    if not isinstance(repository_paths, list) or not repository_paths or any(
-        not isinstance(item, str) or not item for item in repository_paths
+    if (
+        not isinstance(repository_paths, list)
+        or not repository_paths
+        or any(not isinstance(item, str) or not item for item in repository_paths)
     ):
-        report.add(parsed.relative, "SIMO013", "error", "simo.repository_paths must be non-empty")
+        report.add(
+            parsed.relative,
+            "SIMO013",
+            "error",
+            "simo.repository_paths must be non-empty",
+        )
     owner = simo.get("owner")
     if owner != "unassigned" and not _valid_actor(owner):
-        report.add(parsed.relative, "SIMO014", "error", "simo.owner must be unassigned or an OKF actor")
+        report.add(
+            parsed.relative,
+            "SIMO014",
+            "error",
+            "simo.owner must be unassigned or an OKF actor",
+        )
 
     sources = metadata.get("sources", [])
     if not isinstance(sources, list):
@@ -209,14 +269,24 @@ def _validate_profile(report: ValidationReport, parsed: ParsedMarkdown) -> None:
         sources = []
     source_ids: set[str] = set()
     for source in sources:
-        if not isinstance(source, dict) or not isinstance(source.get("resource"), str) or not source["resource"]:
-            report.add(parsed.relative, "OKF007", "error", "every source requires resource")
+        if (
+            not isinstance(source, dict)
+            or not isinstance(source.get("resource"), str)
+            or not source["resource"]
+        ):
+            report.add(
+                parsed.relative, "OKF007", "error", "every source requires resource"
+            )
             continue
         source_id = source.get("id")
         if not isinstance(source_id, str) or not source_id:
-            report.add(parsed.relative, "SIMO016", "error", "Simo sources require a stable id")
+            report.add(
+                parsed.relative, "SIMO016", "error", "Simo sources require a stable id"
+            )
         elif source_id in source_ids:
-            report.add(parsed.relative, "SIMO017", "error", f"duplicate source id {source_id}")
+            report.add(
+                parsed.relative, "SIMO017", "error", f"duplicate source id {source_id}"
+            )
         else:
             source_ids.add(source_id)
 
@@ -224,20 +294,40 @@ def _validate_profile(report: ValidationReport, parsed: ParsedMarkdown) -> None:
     defined = set(FOOTNOTE_DEF_RE.findall(parsed.body))
     for source_id in sorted(used | defined):
         if source_id not in source_ids:
-            report.add(parsed.relative, "SIMO018", "error", f"footnote {source_id} has no source entry")
+            report.add(
+                parsed.relative,
+                "SIMO018",
+                "error",
+                f"footnote {source_id} has no source entry",
+            )
     for source_id in sorted(source_ids):
         if source_id not in used or source_id not in defined:
-            report.add(parsed.relative, "SIMO019", "error", f"source {source_id} lacks a used and defined claim footnote")
+            report.add(
+                parsed.relative,
+                "SIMO019",
+                "error",
+                f"source {source_id} lacks a used and defined claim footnote",
+            )
 
     work = simo.get("work")
     if metadata.get("type") == "Work Plan":
         if not isinstance(work, dict):
-            report.add(parsed.relative, "WORK001", "error", "Work Plan requires simo.work")
+            report.add(
+                parsed.relative, "WORK001", "error", "Work Plan requires simo.work"
+            )
         else:
             parts = Path(parsed.relative).parts
-            expected_id = parts[1] if len(parts) == 3 and parts[0] == "work" and parts[2] == "plan.md" else None
+            expected_id = (
+                parts[1]
+                if len(parts) == 3 and parts[0] == "work" and parts[2] == "plan.md"
+                else None
+            )
             work_id = work.get("id")
-            if expected_id is None or not WORK_ID_RE.fullmatch(str(work_id)) or work_id != expected_id:
+            if (
+                expected_id is None
+                or not WORK_ID_RE.fullmatch(str(work_id))
+                or work_id != expected_id
+            ):
                 report.add(
                     parsed.relative,
                     "WORK007",
@@ -245,25 +335,72 @@ def _validate_profile(report: ValidationReport, parsed: ParsedMarkdown) -> None:
                     "Work Plan must be work/<work-id>/plan.md with matching W-YYYYMMDD-slug id",
                 )
             if simo.get("stable_id") != work_id:
-                report.add(parsed.relative, "WORK008", "error", "Work Plan stable_id must equal simo.work.id")
+                report.add(
+                    parsed.relative,
+                    "WORK008",
+                    "error",
+                    "Work Plan stable_id must equal simo.work.id",
+                )
             if work.get("state") not in WORK_STATES:
-                report.add(parsed.relative, "WORK002", "error", "invalid simo.work.state")
+                report.add(
+                    parsed.relative, "WORK002", "error", "invalid simo.work.state"
+                )
             if work.get("mode") not in {"read_only", "mutation"}:
-                report.add(parsed.relative, "WORK003", "error", "invalid simo.work.mode")
-            if not isinstance(work.get("next_action"), str) or not work["next_action"].strip():
-                report.add(parsed.relative, "WORK004", "error", "Work Plan requires next_action")
+                report.add(
+                    parsed.relative, "WORK003", "error", "invalid simo.work.mode"
+                )
+            if (
+                not isinstance(work.get("next_action"), str)
+                or not work["next_action"].strip()
+            ):
+                report.add(
+                    parsed.relative,
+                    "WORK004",
+                    "error",
+                    "Work Plan requires next_action",
+                )
             if work.get("mode") == "read_only" and work.get("write_paths"):
-                report.add(parsed.relative, "WORK005", "error", "read_only work cannot declare write_paths")
+                report.add(
+                    parsed.relative,
+                    "WORK005",
+                    "error",
+                    "read_only work cannot declare write_paths",
+                )
             accountable = work.get("accountable")
             if accountable != "unassigned" and not _valid_actor(accountable):
-                report.add(parsed.relative, "WORK009", "error", "work accountable must be unassigned or an OKF actor")
+                report.add(
+                    parsed.relative,
+                    "WORK009",
+                    "error",
+                    "work accountable must be unassigned or an OKF actor",
+                )
             for key in ("created_at", "updated_at"):
                 if not _valid_datetime(work.get(key)):
-                    report.add(parsed.relative, "WORK010", "error", f"work {key} must be an ISO 8601 datetime")
-            if work.get("state") == "blocked" and not isinstance(work.get("blocker"), dict):
-                report.add(parsed.relative, "WORK011", "error", "blocked work requires blocker details")
-            if work.get("state") in {"done", "cancelled"} and metadata.get("status") != "stable":
-                report.add(parsed.relative, "WORK012", "error", "terminal Work Plans require status stable")
+                    report.add(
+                        parsed.relative,
+                        "WORK010",
+                        "error",
+                        f"work {key} must be an ISO 8601 datetime",
+                    )
+            if work.get("state") == "blocked" and not isinstance(
+                work.get("blocker"), dict
+            ):
+                report.add(
+                    parsed.relative,
+                    "WORK011",
+                    "error",
+                    "blocked work requires blocker details",
+                )
+            if (
+                work.get("state") in {"done", "cancelled"}
+                and metadata.get("status") != "stable"
+            ):
+                report.add(
+                    parsed.relative,
+                    "WORK012",
+                    "error",
+                    "terminal Work Plans require status stable",
+                )
 
 
 def _resolve_link(bundle_root: Path, source: Path, target: str) -> Path | None:
@@ -273,14 +410,20 @@ def _resolve_link(bundle_root: Path, source: Path, target: str) -> Path | None:
     clean = parsed.path
     if not clean:
         return None
-    resolved = bundle_root / clean.lstrip("/") if clean.startswith("/") else source.parent / clean
+    resolved = (
+        bundle_root / clean.lstrip("/")
+        if clean.startswith("/")
+        else source.parent / clean
+    )
     resolved = resolved.resolve()
     if resolved.is_dir():
         resolved /= "index.md"
     return resolved
 
 
-def _validate_links(report: ValidationReport, parsed: ParsedMarkdown, bundle_root: Path) -> set[Path]:
+def _validate_links(
+    report: ValidationReport, parsed: ParsedMarkdown, bundle_root: Path
+) -> set[Path]:
     resolved_links: set[Path] = set()
     for target in LINK_RE.findall(parsed.body):
         resolved = _resolve_link(bundle_root, parsed.path, target)
@@ -288,28 +431,41 @@ def _validate_links(report: ValidationReport, parsed: ParsedMarkdown, bundle_roo
             continue
         resolved_links.add(resolved)
         if not resolved.exists():
-            report.add(parsed.relative, "SIMO020", "error", f"broken internal link {target}")
+            report.add(
+                parsed.relative, "SIMO020", "error", f"broken internal link {target}"
+            )
     return resolved_links
 
 
 def _validate_index_coverage(
-    report: ValidationReport, bundle_root: Path, parsed_by_path: dict[Path, ParsedMarkdown]
+    report: ValidationReport,
+    bundle_root: Path,
+    parsed_by_path: dict[Path, ParsedMarkdown],
 ) -> None:
     for directory in sorted({path.parent for path in parsed_by_path}):
         index_path = directory / "index.md"
         relevant_files = [
-            path for path in parsed_by_path if path.parent == directory and path.name not in RESERVED_FILENAMES
+            path
+            for path in parsed_by_path
+            if path.parent == directory and path.name not in RESERVED_FILENAMES
         ]
         child_indexes = [
             path
             for path in parsed_by_path
-            if path.name == "index.md" and path.parent.parent == directory and path.parent != directory
+            if path.name == "index.md"
+            and path.parent.parent == directory
+            and path.parent != directory
         ]
         if not relevant_files and not child_indexes:
             continue
         if index_path not in parsed_by_path:
             relative = directory.relative_to(bundle_root).as_posix() or "."
-            report.add(relative, "SIMO021", "error", "directory with knowledge children requires index.md")
+            report.add(
+                relative,
+                "SIMO021",
+                "error",
+                "directory with knowledge children requires index.md",
+            )
             continue
         links = _validate_links(report, parsed_by_path[index_path], bundle_root)
         for child in relevant_files + child_indexes:
@@ -325,10 +481,16 @@ def _validate_index_coverage(
 def _paths_overlap(left: str, right: str) -> bool:
     left_path = Path(left)
     right_path = Path(right)
-    return left_path == right_path or left_path in right_path.parents or right_path in left_path.parents
+    return (
+        left_path == right_path
+        or left_path in right_path.parents
+        or right_path in left_path.parents
+    )
 
 
-def _validate_active_work_overlap(report: ValidationReport, concepts: list[ParsedMarkdown]) -> None:
+def _validate_active_work_overlap(
+    report: ValidationReport, concepts: list[ParsedMarkdown]
+) -> None:
     active: list[tuple[str, list[str], str]] = []
     for concept in concepts:
         metadata = concept.metadata or {}
@@ -336,7 +498,13 @@ def _validate_active_work_overlap(report: ValidationReport, concepts: list[Parse
             continue
         work = metadata.get("simo", {}).get("work", {})
         if work.get("state") == "active" and work.get("mode") == "mutation":
-            active.append((str(work.get("id", concept.relative)), work.get("write_paths", []), concept.relative))
+            active.append(
+                (
+                    str(work.get("id", concept.relative)),
+                    work.get("write_paths", []),
+                    concept.relative,
+                )
+            )
     for index, (left_id, left_paths, left_ref) in enumerate(active):
         for right_id, right_paths, _ in active[index + 1 :]:
             for left_path in left_paths:
@@ -379,7 +547,9 @@ def _validate_work_bundles(
                 )
 
 
-def validate_bundle(repository_root: Path, bundle_root: Path | None = None) -> ValidationReport:
+def validate_bundle(
+    repository_root: Path, bundle_root: Path | None = None
+) -> ValidationReport:
     repository_root = repository_root.resolve()
     bundle_root = (bundle_root or repository_root / "docs").resolve()
     report = ValidationReport()
@@ -396,30 +566,54 @@ def validate_bundle(repository_root: Path, bundle_root: Path | None = None) -> V
         try:
             parsed = parse_markdown(path, bundle_root)
         except (OSError, UnicodeError, ValueError, yaml.YAMLError) as error:
-            report.add(path.relative_to(bundle_root).as_posix(), "OKF008", "error", str(error))
+            report.add(
+                path.relative_to(bundle_root).as_posix(), "OKF008", "error", str(error)
+            )
             continue
         parsed_by_path[path.resolve()] = parsed
         token_count = len(encoding.encode(parsed.raw))
         report.token_counts[parsed.relative] = token_count
         if token_count >= SEVERE_TOKEN_WARNING:
-            report.add(parsed.relative, "CTX002", "warning", f"{token_count} tokens; semantic split strongly recommended")
+            report.add(
+                parsed.relative,
+                "CTX002",
+                "warning",
+                f"{token_count} tokens; semantic split strongly recommended",
+            )
         elif token_count >= DEFAULT_TOKEN_WARNING:
-            report.add(parsed.relative, "CTX001", "warning", f"{token_count} tokens; review for semantic splitting")
+            report.add(
+                parsed.relative,
+                "CTX001",
+                "warning",
+                f"{token_count} tokens; review for semantic splitting",
+            )
         if parsed.relative.endswith("/plan.md") and token_count > PLAN_TOKEN_TARGET:
-            report.add(parsed.relative, "CTX003", "warning", f"Work Plan entrypoint is {token_count} tokens; target is {PLAN_TOKEN_TARGET}")
+            report.add(
+                parsed.relative,
+                "CTX003",
+                "warning",
+                f"Work Plan entrypoint is {token_count} tokens; target is {PLAN_TOKEN_TARGET}",
+            )
 
         if path.name in RESERVED_FILENAMES:
             _validate_reserved(report, parsed, bundle_root)
         else:
             if parsed.metadata is None:
-                report.add(parsed.relative, "OKF009", "error", "concept is missing frontmatter")
+                report.add(
+                    parsed.relative, "OKF009", "error", "concept is missing frontmatter"
+                )
                 continue
             _validate_profile(report, parsed)
             concepts.append(parsed)
             stable_id = (parsed.metadata.get("simo") or {}).get("stable_id")
             if isinstance(stable_id, str):
                 if stable_id in stable_ids:
-                    report.add(parsed.relative, "SIMO023", "error", f"duplicate stable ID {stable_id} also used by {stable_ids[stable_id]}")
+                    report.add(
+                        parsed.relative,
+                        "SIMO023",
+                        "error",
+                        f"duplicate stable ID {stable_id} also used by {stable_ids[stable_id]}",
+                    )
                 else:
                     stable_ids[stable_id] = parsed.relative
 
@@ -432,8 +626,12 @@ def validate_bundle(repository_root: Path, bundle_root: Path | None = None) -> V
 
 
 def _print_report(report: ValidationReport) -> None:
-    for diagnostic in sorted(report.diagnostics, key=lambda item: (item.path, item.severity, item.code)):
-        print(f"{diagnostic.severity.upper()} {diagnostic.code} {diagnostic.path}: {diagnostic.message}")
+    for diagnostic in sorted(
+        report.diagnostics, key=lambda item: (item.path, item.severity, item.code)
+    ):
+        print(
+            f"{diagnostic.severity.upper()} {diagnostic.code} {diagnostic.path}: {diagnostic.message}"
+        )
     print(
         f"docs: {report.concept_count} concept(s), "
         f"{len(report.errors)} error(s), {len(report.warnings)} warning(s)"
@@ -441,7 +639,9 @@ def _print_report(report: ValidationReport) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate the Simo OKF bundle and producer profile.")
+    parser = argparse.ArgumentParser(
+        description="Validate the Simo OKF bundle and producer profile."
+    )
     parser.add_argument("--repository-root", type=Path, default=Path.cwd())
     parser.add_argument("--bundle-root", type=Path)
     args = parser.parse_args(argv)

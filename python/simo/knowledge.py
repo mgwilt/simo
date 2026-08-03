@@ -56,10 +56,14 @@ def load_knowledge_bundle(
         raw = path.read_text(encoding="utf-8")
         match = FRONTMATTER_RE.match(raw)
         if match is None:
-            raise KnowledgeValidationError(f"missing frontmatter after validation: {path}")
+            raise KnowledgeValidationError(
+                f"missing frontmatter after validation: {path}"
+            )
         metadata = yaml.safe_load(match.group(1))
         if not isinstance(metadata, dict):
-            raise KnowledgeValidationError(f"invalid frontmatter after validation: {path}")
+            raise KnowledgeValidationError(
+                f"invalid frontmatter after validation: {path}"
+            )
         relative = path.relative_to(root)
         okf_id = relative.with_suffix("").as_posix()
         simo = metadata["simo"]
@@ -122,7 +126,9 @@ def _validate_repository_bundle(repository: Path, bundle_root: Path) -> None:
     module_name = "_simo_runtime_validate_docs"
     spec = importlib.util.spec_from_file_location(module_name, validator_path)
     if spec is None or spec.loader is None:
-        raise KnowledgeValidationError(f"could not load Simo validator: {validator_path}")
+        raise KnowledgeValidationError(
+            f"could not load Simo validator: {validator_path}"
+        )
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     try:

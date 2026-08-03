@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import aiohttp
 from pipecat.frames.frames import ErrorFrame, Frame, StartFrame, TTSAudioRawFrame
@@ -27,7 +28,7 @@ class GepardTTSService(TTSService):
         reference: str | None = None,
         cfg_scale: float | None = None,
         chunk_duration_ms: int = 20,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             sample_rate=GEPARD_SAMPLE_RATE,
@@ -58,7 +59,11 @@ class GepardTTSService(TTSService):
             await self._session.close()
             self._session = None
 
-    async def run_tts(self, text: str, context_id: str) -> AsyncGenerator[Frame, None]:
+    async def run_tts(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        text: str,
+        context_id: str,
+    ) -> AsyncGenerator[Frame, None]:
         try:
             if self._session is None:
                 raise RuntimeError(

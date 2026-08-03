@@ -23,6 +23,10 @@ inference = [
     "mlx-lm>=0.31.3",
     "parakeet-mlx>=0.5.2",
 ]
+dev = [
+    "pyright==1.1.411",
+    "ruff==0.12.11",
+]
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -36,3 +40,13 @@ package = true
 
 [tool.uv.sources]
 pipecat-ai = { path = "vendor/pipecat" }
+
+[tool.pyright]
+include = ["python/simo"]
+exclude = ["vendor"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+
+[tool.ruff]
+extend-exclude = ["vendor"]
+target-version = "py311"
