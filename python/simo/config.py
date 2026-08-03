@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Mapping, Self
+from typing import Self
 
 QWEN_TTS_MODEL = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit"
 PARAKEET_STT_MODEL = "mlx-community/parakeet-tdt-0.6b-v3"
@@ -20,6 +21,7 @@ class RunMode(StrEnum):
     """Runtime capability level requested by the operator."""
 
     HEADLESS = "headless"
+    MODELS = "models"
     LIVE = "live"
 
 
@@ -45,6 +47,7 @@ class RuntimeConfig:
     context_max_age_ms: int
     audio_input_device_index: int | None
     audio_output_device_index: int | None
+    vad_confidence: float
     vad_start_rms: float
     vad_start_ms: int
     vad_stop_ms: int
@@ -83,8 +86,11 @@ class RuntimeConfig:
         vad_start_rms = _positive_float(values, "SIMO_VAD_START_RMS", 0.02)
         if vad_start_rms > 1:
             raise ValueError("SIMO_VAD_START_RMS must not exceed 1")
-        vad_start_ms = _positive_integer(values, "SIMO_VAD_START_MS", 60)
-        vad_stop_ms = _positive_integer(values, "SIMO_VAD_STOP_MS", 500)
+        vad_confidence = _positive_float(values, "SIMO_VAD_CONFIDENCE", 0.1)
+        if vad_confidence > 1:
+            raise ValueError("SIMO_VAD_CONFIDENCE must not exceed 1")
+        vad_start_ms = _positive_integer(values, "SIMO_VAD_START_MS", 32)
+        vad_stop_ms = _positive_integer(values, "SIMO_VAD_STOP_MS", 320)
         vad_pre_roll_ms = _positive_integer(values, "SIMO_VAD_PRE_ROLL_MS", 200)
         max_utterance_s = _positive_float(values, "SIMO_MAX_UTTERANCE_S", 30.0)
         tts_voice = values.get("SIMO_TTS_VOICE", "Aiden").strip()
@@ -128,6 +134,7 @@ class RuntimeConfig:
             context_max_age_ms=context_max_age_ms,
             audio_input_device_index=audio_input_device_index,
             audio_output_device_index=audio_output_device_index,
+            vad_confidence=vad_confidence,
             vad_start_rms=vad_start_rms,
             vad_start_ms=vad_start_ms,
             vad_stop_ms=vad_stop_ms,

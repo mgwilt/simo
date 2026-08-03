@@ -1,10 +1,10 @@
 ---
 type: Work Plan
-title: Finish the Simo realtime agent
-description: Tracks delivery of a runnable macOS-first open-source voice agent with Pipecat media, Flecs context, OKF knowledge, and proportional live evidence.
+title: Make the Simo macOS voice path reliable
+description: Tracks reliable conditioned Silero turns, echo-safe playback, unattended synthetic acceptance, and responsive local inference on the established Pipecat, Flecs, and OKF foundation.
 tags: [work, product, realtime, voice, flecs, pipecat, okf]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:17:32Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:53:48Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent
@@ -19,13 +19,13 @@ simo:
     priority: p1
     accountable: codex/gpt-5.6-sol
     created_at: 2026-08-03T00:02:13Z
-    updated_at: 2026-08-03T02:49:00Z
+    updated_at: 2026-08-03T02:53:48Z
     depends_on: [W-20260802-semantic-context-spine]
     knowledge_refs: [architecture/semantic-context-spine, interfaces/gepard-tts, governance/DOC-0001-documentation-and-work-management]
     write_paths: [README.md, CMakeLists.txt, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
-    next_action: Add application-controlled Silero confidence calibration or input conditioning for the Arctis stream, then reduce response latency and rerun the three-turn human interruption acceptance.
+    next_action: Reduce response latency and extend the unattended synthetic transport proof to three context-informed turns with interruption and bounded-drop assertions.
     blocker: null
 ---
-# Finish the Simo realtime agent
+# Make the Simo macOS voice path reliable
 
-This plan coordinates product completion. It cannot declare Simo finished until the headless acceptance loop and the user-visible live voice path have proportional runtime evidence.
+The Pipecat, Flecs, OKF, and local-model foundation is implemented. This plan now coordinates reliable voice input/output behavior and automated evidence that can run without a human timing or participating in tests. Synthetic proof does not attest the subjective quality of a particular headset or room.

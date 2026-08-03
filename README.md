@@ -52,14 +52,16 @@ uv run python scripts/setup_models.py --accept-download
 
 The installer downloads only the declared repositories, verifies their required files, and writes a local revision marker after each model is complete. Live preflight rejects partial repositories and markers that do not match the configured model ID and revision.
 
-After the model-download checkpoint and successful live preflight, start the local agent with headphones to reduce speaker-to-microphone feedback:
+After the model-download checkpoint, run the unattended model/VAD proof. It requires MLX Metal but no microphone or speaker. Run live preflight separately before opening local audio:
 
 ```sh
+uv run simo doctor --mode models
 uv run simo prove-models
+uv run simo doctor --mode live
 uv run simo live
 ```
 
-`prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; and then executes real STT → Flecs context injection → real text → real TTS through Pipecat. It writes only an ignored synthetic `.artifacts/model-proof/tts.wav` and does not open the microphone or speaker.
+`prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; proves one conditioned Silero utterance; replays the generated speech as simulated speaker echo and requires zero extra turns; and then executes real STT → Flecs context injection → real text → real TTS through Pipecat. It writes only an ignored synthetic `.artifacts/model-proof/tts.wav` and does not open the microphone or speaker.
 
 Use the aggregate-only microphone calibrator to diagnose input level separation:
 
@@ -84,9 +86,10 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_CONTEXT_MAX_AGE_MS` | `1000` |
 | `SIMO_AUDIO_INPUT_DEVICE_INDEX` | system default |
 | `SIMO_AUDIO_OUTPUT_DEVICE_INDEX` | system default |
+| `SIMO_VAD_CONFIDENCE` | `0.10` |
 | `SIMO_VAD_START_RMS` | `0.02` |
-| `SIMO_VAD_START_MS` | `60` |
-| `SIMO_VAD_STOP_MS` | `500` |
+| `SIMO_VAD_START_MS` | `32` |
+| `SIMO_VAD_STOP_MS` | `320` |
 | `SIMO_VAD_PRE_ROLL_MS` | `200` |
 | `SIMO_MAX_UTTERANCE_S` | `30` |
 | `SIMO_TTS_MODEL` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` |

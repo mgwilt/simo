@@ -24,6 +24,9 @@ class QwenMLXTTSService(TTSService):
         settings: TTSSettings | None = None,
         **kwargs: Any,
     ) -> None:
+        kwargs.setdefault("push_start_frame", True)
+        kwargs.setdefault("push_stop_frames", True)
+        kwargs.setdefault("stop_frame_timeout_s", 0.75)
         super().__init__(
             settings=settings or TTSSettings(model=model, voice=voice, language=None),
             **kwargs,

@@ -6,7 +6,7 @@ import re
 import time
 import wave
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -19,6 +19,9 @@ from simo.inference import (
     SpeechSynthesizer,
     TextGenerator,
 )
+
+if TYPE_CHECKING:
+    from pipecat.frames.frames import InputAudioRawFrame
 
 TEXT_PROOF_RESPONSE = "SIMO TEXT READY"
 SPEECH_PROOF_PHRASE = "The blue door is open."
@@ -61,6 +64,7 @@ async def prove_models(
     _write_wav(wav_path, cold_audio, 24_000)
 
     stt_pcm = resample_pcm_s16le(cold_audio, 24_000, 16_000)
+    vad_result = await prove_synthetic_vad(config, stt_pcm, cold_audio)
     stt_cold, stt_cold_ms = await _timed_transcribe(recognizer, stt_pcm)
     stt_warm, stt_warm_ms = await _timed_transcribe(recognizer, stt_pcm)
     expected_words = _normalize_words(SPEECH_PROOF_PHRASE)
@@ -101,6 +105,7 @@ async def prove_models(
             "warm_realtime_factor": round(stt_warm_ms / (duration_s * 1_000), 3),
             "transcript": stt_warm,
         },
+        "vad": vad_result,
     }
     result["pipeline"] = await prove_real_model_pipeline(
         config,
@@ -112,6 +117,138 @@ async def prove_models(
     return result
 
 
+async def prove_synthetic_vad(
+    config: RuntimeConfig,
+    speech_pcm_s16le: bytes,
+    playback_pcm_s16le: bytes,
+) -> dict[str, Any]:
+    """Prove real Silero turn detection and echo suppression without audio devices."""
+
+    from pipecat.audio.vad.vad_analyzer import VADParams
+    from pipecat.frames.frames import EndFrame
+    from pipecat.processors.frame_processor import FrameDirection
+
+    from simo.adapters.pipecat.inference import PCMUtteranceFrame
+    from simo.adapters.pipecat.local_audio import (
+        ObservedSileroVADAnalyzer,
+        PlaybackState,
+        SileroUtteranceProcessor,
+    )
+    from simo.operations import RuntimeMetrics
+
+    if not speech_pcm_s16le or len(speech_pcm_s16le) % 2:
+        raise ValueError("synthetic VAD proof requires non-empty 16-bit speech PCM")
+    if not playback_pcm_s16le or len(playback_pcm_s16le) % 2:
+        raise ValueError("synthetic VAD proof requires non-empty 16-bit playback PCM")
+
+    metrics = RuntimeMetrics()
+    playback_state = PlaybackState()
+    analyzer = ObservedSileroVADAnalyzer(
+        runtime_metrics=metrics,
+        sample_rate=16_000,
+        params=VADParams(
+            confidence=config.vad_confidence,
+            start_secs=config.vad_start_ms / 1_000,
+            stop_secs=config.vad_stop_ms / 1_000,
+            min_volume=0.0,
+        ),
+    )
+    segmenter = SileroUtteranceProcessor(
+        analyzer,
+        pre_roll_ms=config.vad_pre_roll_ms,
+        max_utterance_s=config.max_utterance_s,
+        runtime_metrics=metrics,
+        playback_state=playback_state,
+        user_id="synthetic-proof",
+    )
+    emitted: list[object] = []
+
+    async def collect(  # noqa: RUF029 - Pipecat push_frame is asynchronous.
+        frame: object,
+        direction: FrameDirection,
+    ) -> None:
+        del direction
+        emitted.append(frame)
+
+    segmenter.push_frame = collect  # type: ignore[method-assign]
+    try:
+        silence = b"\x00\x00" * 320
+        for _ in range(10):
+            await segmenter.process_frame(
+                _input_audio_frame(silence, sample_rate=16_000),
+                FrameDirection.DOWNSTREAM,
+            )
+        for chunk in _pcm_chunks(speech_pcm_s16le, frames_per_chunk=320):
+            await segmenter.process_frame(
+                _input_audio_frame(chunk, sample_rate=16_000),
+                FrameDirection.DOWNSTREAM,
+            )
+        for _ in range(30):
+            await segmenter.process_frame(
+                _input_audio_frame(silence, sample_rate=16_000),
+                FrameDirection.DOWNSTREAM,
+            )
+        await segmenter.process_frame(EndFrame(), FrameDirection.DOWNSTREAM)
+
+        utterances = sum(isinstance(frame, PCMUtteranceFrame) for frame in emitted)
+        if utterances != 1:
+            raise RuntimeError(
+                f"synthetic Silero proof expected one utterance, observed {utterances}"
+            )
+
+        starts_before_echo = cast(
+            "dict[str, int]",
+            metrics.snapshot()["audio_activity"],
+        )["utterances_started"]
+        playback_state.begin_context()
+        playback_state.reserve(len(playback_pcm_s16le) / 2 / 24_000)
+        echo_chunks = 0
+        for chunk in _pcm_chunks(speech_pcm_s16le, frames_per_chunk=320):
+            echo_chunks += 1
+            await segmenter.process_frame(
+                _input_audio_frame(chunk, sample_rate=16_000),
+                FrameDirection.DOWNSTREAM,
+            )
+        playback_state.end_context()
+
+        snapshot = metrics.snapshot()
+        activity = cast("dict[str, int]", snapshot["audio_activity"])
+        echo_turns = activity["utterances_started"] - starts_before_echo
+        suppressed = activity["playback_suppressed_chunks"]
+        if echo_turns != 0 or suppressed != echo_chunks:
+            raise RuntimeError(
+                "synthetic playback echo was not fully suppressed: "
+                f"echo_turns={echo_turns}, suppressed={suppressed}, chunks={echo_chunks}"
+            )
+        return {
+            "speech_utterances": utterances,
+            "playback_echo_turns": echo_turns,
+            "playback_suppressed_chunks": suppressed,
+            "confidence": cast("dict[str, int | float]", snapshot["vad_analysis"]),
+        }
+    finally:
+        await segmenter.cleanup()
+
+
+def _input_audio_frame(audio: bytes, *, sample_rate: int) -> InputAudioRawFrame:
+    from pipecat.frames.frames import InputAudioRawFrame
+
+    return InputAudioRawFrame(
+        audio=audio,
+        sample_rate=sample_rate,
+        num_channels=1,
+    )
+
+
+def _pcm_chunks(pcm_s16le: bytes, *, frames_per_chunk: int) -> list[bytes]:
+    chunk_bytes = frames_per_chunk * 2
+    return [
+        pcm_s16le[offset : offset + chunk_bytes]
+        for offset in range(0, len(pcm_s16le), chunk_bytes)
+        if len(pcm_s16le[offset : offset + chunk_bytes]) == chunk_bytes
+    ]
+
+
 async def prove_real_model_pipeline(
     config: RuntimeConfig,
     pcm_s16le: bytes,
@@ -119,15 +256,15 @@ async def prove_real_model_pipeline(
     generator: TextGenerator,
     synthesizer: SpeechSynthesizer,
     recognizer: SpeechRecognizer,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Execute real providers through Pipecat and one Flecs semantic turn."""
 
     from pipecat.frames.frames import (
         EndFrame,
         ErrorFrame,
         LLMTextFrame,
-        TTSAudioRawFrame,
         TranscriptionFrame,
+        TTSAudioRawFrame,
     )
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -211,18 +348,12 @@ async def prove_real_model_pipeline(
         frames = (*semantic_collector.frames, *audio_collector.frames)
         errors = [frame for frame in frames if isinstance(frame, ErrorFrame)]
         if errors:
-            raise RuntimeError(
-                f"real model pipeline emitted {len(errors)} error frame(s)"
-            )
+            raise RuntimeError(f"real model pipeline emitted {len(errors)} error frame(s)")
         counts = {
-            "transcriptions": sum(
-                isinstance(frame, TranscriptionFrame) for frame in frames
-            ),
+            "transcriptions": sum(isinstance(frame, TranscriptionFrame) for frame in frames),
             "semantic_turns": semantic.injection_count,
             "text_frames": sum(isinstance(frame, LLMTextFrame) for frame in frames),
-            "audio_frames": sum(
-                isinstance(frame, TTSAudioRawFrame) for frame in frames
-            ),
+            "audio_frames": sum(isinstance(frame, TTSAudioRawFrame) for frame in frames),
         }
         if any(count < 1 for count in counts.values()) or semantic.injection_count != 1:
             raise RuntimeError(
@@ -248,7 +379,7 @@ async def prove_real_model_pipeline(
         "observer_accepted": observer.accepted,
         "observer_duplicates": observer.duplicate,
         "observer_mailbox_dropped": mailbox_stats.dropped,
-        "metrics": metrics.snapshot()["stages"],
+        "metrics": cast(object, metrics.snapshot()["stages"]),
     }
 
 

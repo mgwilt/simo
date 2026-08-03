@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import wave
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
@@ -25,7 +26,7 @@ class FakeGenerator:
 
 
 class FakeSynthesizer:
-    async def synthesize(self, text: str):  # type: ignore[no-untyped-def]
+    async def synthesize(self, text: str):
         yield AudioChunk(b"\x00\x00" * 24_000, 24_000)
 
 
@@ -38,15 +39,25 @@ class ModelProofTests(unittest.TestCase):
     def test_model_proof_executes_all_contracts_and_writes_wav(self) -> None:
         config = RuntimeConfig.from_environment({}, mode=RunMode.LIVE)
         with tempfile.TemporaryDirectory() as directory:
-            result = asyncio.run(
-                prove_models(
-                    config,
-                    Path(directory),
-                    generator=FakeGenerator(),
-                    synthesizer=FakeSynthesizer(),
-                    recognizer=FakeRecognizer(),
+            vad = {
+                "speech_utterances": 1,
+                "playback_echo_turns": 0,
+                "playback_suppressed_chunks": 50,
+                "confidence": {"frames": 50, "mean_confidence": 0.5},
+            }
+            with patch(
+                "simo.model_proof.prove_synthetic_vad",
+                new=AsyncMock(return_value=vad),
+            ):
+                result = asyncio.run(
+                    prove_models(
+                        config,
+                        Path(directory),
+                        generator=FakeGenerator(),
+                        synthesizer=FakeSynthesizer(),
+                        recognizer=FakeRecognizer(),
+                    )
                 )
-            )
             path = Path(result["artifact"])
             self.assertTrue(path.is_file())
             with wave.open(str(path), "rb") as artifact:
@@ -55,6 +66,7 @@ class ModelProofTests(unittest.TestCase):
                 self.assertEqual(24_000, artifact.getframerate())
             self.assertEqual("SIMO TEXT READY", result["text"]["response"])
             self.assertEqual("The blue door is open.", result["stt"]["transcript"])
+            self.assertEqual(vad, result["vad"])
             self.assertEqual(1, result["pipeline"]["context_injections"])
             self.assertGreaterEqual(result["pipeline"]["audio_frames"], 1)
             self.assertGreater(result["pipeline"]["tts_audio_bytes"], 0)

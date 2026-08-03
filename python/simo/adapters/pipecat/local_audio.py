@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from array import array
 from collections import deque
+from collections.abc import Callable
 from datetime import UTC, datetime
+from math import fsum, sqrt
+from sys import byteorder
+from time import monotonic
 from typing import Protocol
 
 import numpy as np
@@ -12,10 +17,13 @@ from pipecat.audio.vad.vad_analyzer import VADState
 from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
+    ErrorFrame,
     Frame,
     InputAudioRawFrame,
     InterruptionFrame,
-    OutputAudioRawFrame,
+    TTSAudioRawFrame,
+    TTSStartedFrame,
+    TTSStoppedFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
@@ -56,6 +64,66 @@ class VoiceActivityAnalyzer(Protocol):
     async def cleanup(self) -> None: ...
 
 
+class PlaybackState:
+    """Reserve queued output time for half-duplex echo suppression."""
+
+    def __init__(
+        self,
+        *,
+        release_grace_s: float = 0.15,
+        clock: Callable[[], float] = monotonic,
+    ) -> None:
+        if release_grace_s < 0:
+            raise ValueError("playback release grace must be non-negative")
+        self._release_grace_s = release_grace_s
+        self._clock = clock
+        self._queued_until = 0.0
+        self._context_active = False
+
+    @property
+    def active(self) -> bool:
+        return self._context_active or (self._clock() < self._queued_until + self._release_grace_s)
+
+    def begin_context(self) -> None:
+        self._context_active = True
+
+    def end_context(self) -> None:
+        self._context_active = False
+
+    def reserve(self, duration_s: float) -> None:
+        """Append an actual TTS audio frame to the estimated playback queue."""
+
+        if duration_s <= 0:
+            raise ValueError("playback duration must be positive")
+        now = self._clock()
+        self._queued_until = max(now, self._queued_until) + duration_s
+
+    def reset(self) -> None:
+        self._context_active = False
+        self._queued_until = 0.0
+
+
+class PlaybackStateProcessor(FrameProcessor):
+    """Estimate playback from emitted audio without retaining its contents."""
+
+    def __init__(self, state: PlaybackState) -> None:
+        super().__init__(enable_direct_mode=True)
+        self._state = state
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+        if direction is FrameDirection.DOWNSTREAM:
+            if isinstance(frame, TTSStartedFrame):
+                self._state.begin_context()
+            elif isinstance(frame, TTSAudioRawFrame):
+                self._state.reserve(frame.num_frames / frame.sample_rate)
+            elif isinstance(frame, TTSStoppedFrame):
+                self._state.end_context()
+            elif isinstance(frame, (CancelFrame, EndFrame)):
+                self._state.reset()
+        await self.push_frame(frame, direction)
+
+
 class ObservedSileroVADAnalyzer(SileroVADAnalyzer):
     """Record privacy-safe neural confidence aggregates for live diagnostics."""
 
@@ -64,9 +132,43 @@ class ObservedSileroVADAnalyzer(SileroVADAnalyzer):
         self._runtime_metrics = runtime_metrics
 
     def voice_confidence(self, buffer: bytes) -> float:
-        confidence = float(np.asarray(super().voice_confidence(buffer)).item())
+        conditioned = condition_pcm_for_silero(buffer)
+        confidence = float(
+            np.asarray(  # pyright: ignore[reportAny]
+                super().voice_confidence(conditioned)
+            ).item()
+        )
         self._runtime_metrics.record_vad_confidence(confidence)
         return confidence
+
+
+def condition_pcm_for_silero(
+    buffer: bytes,
+    *,
+    target_rms: float = 0.05,
+    max_gain: float = 8.0,
+) -> bytes:
+    """Remove per-window DC and apply bounded gain without retaining audio."""
+
+    if not buffer or len(buffer) % 2:
+        raise ValueError("Silero conditioning requires non-empty 16-bit PCM")
+    if target_rms <= 0 or max_gain < 1:
+        raise ValueError("Silero conditioning bounds are invalid")
+    samples = array("h")
+    samples.frombytes(buffer)
+    if byteorder != "little":
+        samples.byteswap()
+    mean = fsum(samples) / len(samples)
+    centered = [sample - mean for sample in samples]
+    rms = sqrt(fsum(sample * sample for sample in centered) / len(centered)) / 32768.0
+    gain = min(max_gain, max(1.0, target_rms / max(rms, 1e-6)))
+    conditioned = array(
+        "h",
+        (round(max(-32768.0, min(32767.0, sample * gain))) for sample in centered),
+    )
+    if byteorder != "little":
+        conditioned.byteswap()
+    return conditioned.tobytes()
 
 
 class SileroUtteranceProcessor(FrameProcessor):
@@ -80,15 +182,19 @@ class SileroUtteranceProcessor(FrameProcessor):
         max_utterance_s: float = 30.0,
         user_id: str = "local-user",
         runtime_metrics: RuntimeMetrics | None = None,
+        playback_state: PlaybackState | None = None,
     ) -> None:
         if pre_roll_ms <= 0 or max_utterance_s <= 0:
             raise ValueError("utterance timing bounds must be positive")
-        super().__init__(enable_direct_mode=True)
+        super().__init__(  # pyright: ignore[reportUnknownMemberType]
+            enable_direct_mode=True
+        )
         self._analyzer = analyzer
         self._pre_roll_ms = pre_roll_ms
         self._max_utterance_s = max_utterance_s
         self._user_id = user_id
         self._runtime_metrics = runtime_metrics
+        self._playback_state = playback_state
         self._pre_roll: deque[bytes] = deque()
         self._pre_roll_duration_ms = 0.0
         self._utterance = bytearray()
@@ -124,13 +230,27 @@ class SileroUtteranceProcessor(FrameProcessor):
             raise ValueError("local input must be non-empty 16-bit PCM")
         if self._runtime_metrics is not None:
             self._runtime_metrics.record_audio_input_chunk()
+        if self._playback_state is not None and self._playback_state.active:
+            self._reset()
+            if self._runtime_metrics is not None:
+                self._runtime_metrics.record_playback_suppressed_chunk()
+            return
         if self._sample_rate not in (0, frame.sample_rate):
             raise ValueError("local input sample rate changed during an utterance")
         if self._sample_rate == 0:
             self._analyzer.set_sample_rate(frame.sample_rate)
         self._sample_rate = frame.sample_rate
         duration_ms = frame.num_frames / frame.sample_rate * 1_000
-        vad_state = await self._analyzer.analyze_audio(frame.audio)
+        try:
+            vad_state = await self._analyzer.analyze_audio(frame.audio)
+        except Exception as error:
+            if self._runtime_metrics is not None:
+                self._runtime_metrics.record_error()
+            await self.push_frame(
+                ErrorFrame(error="Silero VAD failed", exception=error),
+                direction,
+            )
+            return
 
         if not self._speaking:
             self._append_pre_roll(frame.audio, duration_ms)
@@ -142,9 +262,7 @@ class SileroUtteranceProcessor(FrameProcessor):
                 await self.push_frame(UserStartedSpeakingFrame(), direction)
                 await self.push_frame(InterruptionFrame(), direction)
                 if self._runtime_metrics is not None:
-                    self._runtime_metrics.record_user_speech_start(
-                        interruption_signaled=True
-                    )
+                    self._runtime_metrics.record_user_speech_start(interruption_signaled=True)
             return
 
         self._utterance.extend(frame.audio)
@@ -166,7 +284,6 @@ class SileroUtteranceProcessor(FrameProcessor):
         audio = bytes(self._utterance)
         sample_rate = self._sample_rate
         await self.push_frame(UserStoppedSpeakingFrame(), direction)
-        await self.push_frame(_acknowledgement_tone(), direction)
         await self.push_frame(
             PCMUtteranceFrame(
                 audio=audio,
@@ -184,14 +301,3 @@ class SileroUtteranceProcessor(FrameProcessor):
         self._utterance.clear()
         self._sample_rate = 0
         self._speaking = False
-
-
-def _acknowledgement_tone() -> OutputAudioRawFrame:
-    sample_rate = 24_000
-    positions = np.arange(round(sample_rate * 0.07), dtype=np.float32) / sample_rate
-    wave = np.sin(2 * np.pi * 1_040 * positions) * 0.12
-    return OutputAudioRawFrame(
-        audio=(wave * 32767).astype("<i2").tobytes(),
-        sample_rate=sample_rate,
-        num_channels=1,
-    )

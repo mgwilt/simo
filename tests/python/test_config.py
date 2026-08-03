@@ -30,9 +30,10 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(1_000, config.context_max_age_ms)
         self.assertIsNone(config.audio_input_device_index)
         self.assertIsNone(config.audio_output_device_index)
+        self.assertEqual(0.1, config.vad_confidence)
         self.assertEqual(0.02, config.vad_start_rms)
-        self.assertEqual(60, config.vad_start_ms)
-        self.assertEqual(500, config.vad_stop_ms)
+        self.assertEqual(32, config.vad_start_ms)
+        self.assertEqual(320, config.vad_stop_ms)
         self.assertEqual(200, config.vad_pre_roll_ms)
         self.assertEqual(30.0, config.max_utterance_s)
         self.assertEqual("Aiden", config.tts_voice)
@@ -54,6 +55,7 @@ class RuntimeConfigTests(unittest.TestCase):
                 "SIMO_TTS_STREAMING_INTERVAL_S": "0.5",
                 "SIMO_AUDIO_INPUT_DEVICE_INDEX": "0",
                 "SIMO_AUDIO_OUTPUT_DEVICE_INDEX": "3",
+                "SIMO_VAD_CONFIDENCE": "0.4",
                 "SIMO_VAD_START_RMS": "0.04",
                 "SIMO_VAD_START_MS": "80",
                 "SIMO_VAD_STOP_MS": "600",
@@ -73,6 +75,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(0.5, config.tts_streaming_interval_s)
         self.assertEqual(0, config.audio_input_device_index)
         self.assertEqual(3, config.audio_output_device_index)
+        self.assertEqual(0.4, config.vad_confidence)
         self.assertEqual(0.04, config.vad_start_rms)
         self.assertEqual(80, config.vad_start_ms)
         self.assertEqual(600, config.vad_stop_ms)
@@ -91,17 +94,15 @@ class RuntimeConfigTests(unittest.TestCase):
         for value in ("0", "-0.1", "soon"):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "positive number"):
-                    RuntimeConfig.from_environment(
-                        {"SIMO_TTS_STREAMING_INTERVAL_S": value}
-                    )
+                    RuntimeConfig.from_environment({"SIMO_TTS_STREAMING_INTERVAL_S": value})
         with self.assertRaisesRegex(ValueError, "must not exceed 1"):
             RuntimeConfig.from_environment({"SIMO_VAD_START_RMS": "1.1"})
+        with self.assertRaisesRegex(ValueError, "must not exceed 1"):
+            RuntimeConfig.from_environment({"SIMO_VAD_CONFIDENCE": "1.1"})
         for value in ("-1", "device"):
             with self.subTest(device=value):
                 with self.assertRaisesRegex(ValueError, "non-negative integer"):
-                    RuntimeConfig.from_environment(
-                        {"SIMO_AUDIO_INPUT_DEVICE_INDEX": value}
-                    )
+                    RuntimeConfig.from_environment({"SIMO_AUDIO_INPUT_DEVICE_INDEX": value})
 
 
 if __name__ == "__main__":

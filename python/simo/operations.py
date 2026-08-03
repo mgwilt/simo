@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Callable, Protocol, TextIO
+from typing import Any, Protocol, TextIO
 
 _STAGES = ("knowledge", "pipeline", "stt", "text_inference", "tts")
 
@@ -41,6 +42,7 @@ class RuntimeMetrics:
         self._world_revision = 0
         self._audio_activity: dict[str, int] = {
             "input_chunks": 0,
+            "playback_suppressed_chunks": 0,
             "utterances_started": 0,
             "interruption_signals": 0,
         }
@@ -107,6 +109,10 @@ class RuntimeMetrics:
         with self._lock:
             self._audio_activity["input_chunks"] += 1
 
+    def record_playback_suppressed_chunk(self) -> None:
+        with self._lock:
+            self._audio_activity["playback_suppressed_chunks"] += 1
+
     def record_vad_confidence(self, confidence: float) -> None:
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("VAD confidence must be between zero and one")
@@ -166,18 +172,14 @@ class RuntimeMetrics:
                 "audio_activity": dict(self._audio_activity),
                 "vad_analysis": {
                     "frames": self._vad_frames,
-                    "mean_confidence": round(
-                        self._vad_confidence_total / self._vad_frames, 6
-                    )
+                    "mean_confidence": round(self._vad_confidence_total / self._vad_frames, 6)
                     if self._vad_frames
                     else 0.0,
                     "max_confidence": round(self._vad_max_confidence, 6),
                 },
                 "context_queue": dict(self._context_queue),
                 "observer_mailbox": dict(self._observer_mailbox),
-                "stages": {
-                    name: asdict(metrics) for name, metrics in self._stages.items()
-                },
+                "stages": {name: asdict(metrics) for name, metrics in self._stages.items()},
             }
 
     def _elapsed_ms(self, started_ns: int) -> float:
@@ -189,9 +191,7 @@ class RuntimeMetrics:
 
 
 class OperationalEventSink(Protocol):
-    def lifecycle(
-        self, mode: str, phase: str, *, reason: str | None = None
-    ) -> None: ...
+    def lifecycle(self, mode: str, phase: str, *, reason: str | None = None) -> None: ...
 
     def failure(self, mode: str, stage: str, error: BaseException) -> None: ...
 

@@ -13,13 +13,13 @@ from simo.runtime import HeadlessRuntime
 
 
 class FakeEngine:
-    instance: "FakeEngine | None" = None
+    instance: FakeEngine | None = None
 
     def __init__(self, **kwargs: object) -> None:
         self.closed = False
         FakeEngine.instance = self
 
-    def __enter__(self) -> "FakeEngine":
+    def __enter__(self) -> FakeEngine:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -38,6 +38,7 @@ class RuntimeMetricsTests(unittest.TestCase):
         metrics.finish_stage(token)
         metrics.record_user_speech_start(interruption_signaled=True)
         metrics.record_audio_input_chunk()
+        metrics.record_playback_suppressed_chunk()
         metrics.record_vad_confidence(0.25)
         metrics.record_vad_confidence(0.75)
         metrics.update_runtime_state(
@@ -60,6 +61,7 @@ class RuntimeMetricsTests(unittest.TestCase):
         self.assertEqual(1, snapshot["audio_activity"]["utterances_started"])
         self.assertEqual(1, snapshot["audio_activity"]["interruption_signals"])
         self.assertEqual(1, snapshot["audio_activity"]["input_chunks"])
+        self.assertEqual(1, snapshot["audio_activity"]["playback_suppressed_chunks"])
         self.assertEqual(
             {"frames": 2, "mean_confidence": 0.5, "max_confidence": 0.75},
             snapshot["vad_analysis"],

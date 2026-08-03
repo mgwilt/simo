@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
-from collections.abc import Callable
-from typing import Any, Iterable, Protocol
+from typing import Any, Protocol
 
 from pipecat.frames.frames import LLMTextFrame, TTSAudioRawFrame
 
@@ -176,6 +176,7 @@ class LiveRuntime:
         self._runner_factory = runner_factory or _create_worker_runner
 
     async def run(self) -> LiveResult:
+        from pipecat.audio.vad.vad_analyzer import VADParams
         from pipecat.pipeline.pipeline import Pipeline
         from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 
@@ -183,10 +184,10 @@ class LiveRuntime:
             LocalSTTProcessor,
             LocalTextInferenceProcessor,
         )
-        from pipecat.audio.vad.vad_analyzer import VADParams
-
         from simo.adapters.pipecat.local_audio import (
             ObservedSileroVADAnalyzer,
+            PlaybackState,
+            PlaybackStateProcessor,
             SileroUtteranceProcessor,
         )
         from simo.adapters.pipecat.observer import PipecatSemanticObserver
@@ -219,20 +220,22 @@ class LiveRuntime:
                 mailbox = BoundedTranscriptMailbox(capacity=self._config.queue_capacity)
                 bridge = FinalTranscriptObservationBridge(mailbox)
                 transport = self._transport_factory(self._config)
+                playback_state = PlaybackState()
                 segmenter = SileroUtteranceProcessor(
                     ObservedSileroVADAnalyzer(
                         runtime_metrics=metrics,
                         sample_rate=16_000,
                         params=VADParams(
-                            confidence=0.5,
-                            start_secs=0.1,
-                            stop_secs=0.35,
+                            confidence=self._config.vad_confidence,
+                            start_secs=self._config.vad_start_ms / 1_000,
+                            stop_secs=self._config.vad_stop_ms / 1_000,
                             min_volume=0.0,
                         ),
                     ),
                     pre_roll_ms=self._config.vad_pre_roll_ms,
                     max_utterance_s=self._config.max_utterance_s,
                     runtime_metrics=metrics,
+                    playback_state=playback_state,
                 )
                 stt = LocalSTTProcessor(
                     self._recognizer_factory(self._config),
@@ -263,6 +266,7 @@ class LiveRuntime:
                         semantic_turn,
                         text,
                         tts,
+                        PlaybackStateProcessor(playback_state),
                         transport.output(),
                     ]
                 )

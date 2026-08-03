@@ -39,6 +39,7 @@ class DoctorReport:
 def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
     """Inspect prerequisites without importing ML runtimes or loading weights."""
 
+    requires_models = config.mode in (RunMode.MODELS, RunMode.LIVE)
     is_live = config.mode is RunMode.LIVE
     checks = [
         Check(
@@ -55,7 +56,8 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
         ),
         _core_check(config),
     ]
-    if is_live:
+    audio_module_check: Check | None = None
+    if requires_models:
         mlx_module_checks = [
             _module_check(name, module)
             for name, module in (
@@ -64,9 +66,10 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
                 ("MLX-LM", "mlx_lm"),
             )
         ]
-        audio_module_check = _module_check("PyAudio", "pyaudio")
         checks.extend(mlx_module_checks)
-        checks.append(audio_module_check)
+        if is_live:
+            audio_module_check = _module_check("PyAudio", "pyaudio")
+            checks.append(audio_module_check)
         checks.append(
             _mlx_metal_check()
             if all(check.ok for check in mlx_module_checks)
@@ -77,16 +80,17 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
                 "not tested until all MLX runtime modules are installed",
             )
         )
-        checks.append(
-            _local_audio_device_check(config)
-            if audio_module_check.ok
-            else Check(
-                "local audio devices",
-                False,
-                True,
-                "not tested until PyAudio is installed",
+        if is_live and audio_module_check is not None:
+            checks.append(
+                _local_audio_device_check(config)
+                if audio_module_check.ok
+                else Check(
+                    "local audio devices",
+                    False,
+                    True,
+                    "not tested until PyAudio is installed",
+                )
             )
-        )
         checks.append(_nltk_data_check())
         checks.extend(
             _model_check(name, model)
@@ -118,24 +122,15 @@ def _model_check(name: str, model: ModelConfig) -> Check:
     path = model.local_path
     if not path.is_dir():
         return Check(name, False, True, f"not downloaded at {path}")
-    missing = [
-        relative for relative in model.required_paths if not (path / relative).is_file()
-    ]
+    missing = [relative for relative in model.required_paths if not (path / relative).is_file()]
     if missing:
-        return Check(
-            name, False, True, f"incomplete at {path}; missing {', '.join(missing)}"
-        )
+        return Check(name, False, True, f"incomplete at {path}; missing {', '.join(missing)}")
     marker_path = path / ".simo-model.json"
     try:
         marker = json.loads(marker_path.read_text())
     except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return Check(
-            name, False, True, f"unverified at {path}; run scripts/setup_models.py"
-        )
-    if (
-        marker.get("model_id") != model.model_id
-        or marker.get("revision") != model.revision
-    ):
+        return Check(name, False, True, f"unverified at {path}; run scripts/setup_models.py")
+    if marker.get("model_id") != model.model_id or marker.get("revision") != model.revision:
         return Check(
             name,
             False,
@@ -212,9 +207,7 @@ finally:
             sys.executable,
             "-c",
             script,
-            ""
-            if config.audio_input_device_index is None
-            else str(config.audio_input_device_index),
+            "" if config.audio_input_device_index is None else str(config.audio_input_device_index),
             ""
             if config.audio_output_device_index is None
             else str(config.audio_output_device_index),

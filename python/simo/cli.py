@@ -64,11 +64,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    command: str = args.command  # pyright: ignore[reportAny]
     try:
         requested_mode = (
-            RunMode.LIVE
-            if args.command in {"live", "prove-models", "calibrate-mic"}
-            else getattr(args, "mode", RunMode.HEADLESS)
+            RunMode.MODELS
+            if command == "prove-models"
+            else (
+                RunMode.LIVE
+                if command in {"live", "calibrate-mic"}
+                else getattr(args, "mode", RunMode.HEADLESS)
+            )
         )
         config = RuntimeConfig.from_environment(mode=requested_mode)
         if args.command == "doctor":
@@ -81,9 +86,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _print_report(report, False)
                 return 1
             result = asyncio.run(
-                HeadlessRuntime(config, events=JsonEventSink(sys.stderr)).run(
-                    args.transcript
-                )
+                HeadlessRuntime(config, events=JsonEventSink(sys.stderr)).run(args.transcript)
             )
             print(
                 json.dumps(
@@ -102,9 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not report.ready:
                 _print_report(report, False)
                 return 1
-            result = asyncio.run(
-                LiveRuntime(config, events=JsonEventSink(sys.stderr)).run()
-            )
+            result = asyncio.run(LiveRuntime(config, events=JsonEventSink(sys.stderr)).run())
             print(json.dumps({"operations": result.operations}))
             return 0
         if args.command == "prove-models":

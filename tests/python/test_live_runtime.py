@@ -15,7 +15,6 @@ os.environ.setdefault(
 from pipecat.frames.frames import EndFrame, Frame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.workers.runner import WorkerRunner
-
 from simo.config import RunMode, RuntimeConfig
 from simo.operations import JsonEventSink
 from simo.runtime import LiveRuntime
@@ -105,9 +104,7 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(16_000, worker.params.audio_in_sample_rate)  # type: ignore[union-attr]
         self.assertEqual(24_000, worker.params.audio_out_sample_rate)  # type: ignore[union-attr]
         user_pipeline = worker.pipeline.processors[1]  # type: ignore[union-attr]
-        names = [
-            type(processor).__name__ for processor in user_pipeline.processors[1:-1]
-        ]
+        names = [type(processor).__name__ for processor in user_pipeline.processors[1:-1]]
         self.assertEqual(
             [
                 "Endpoint",
@@ -116,6 +113,7 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "SemanticTurnProcessor",
                 "LocalTextInferenceProcessor",
                 "QwenMLXTTSService",
+                "PlaybackStateProcessor",
                 "Endpoint",
             ],
             names,
@@ -125,7 +123,7 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
             for processor in user_pipeline.processors
             if type(processor).__name__ == "SileroUtteranceProcessor"
         )
-        self.assertEqual(0.5, segmenter._analyzer.params.confidence)
+        self.assertEqual(0.1, segmenter._analyzer.params.confidence)
         self.assertEqual(0.0, segmenter._analyzer.params.min_volume)
         self.assertTrue(result.operations["clean_shutdown"])
         self.assertEqual("completed", result.operations["shutdown_reason"])
