@@ -4,7 +4,7 @@ title: Conversational identities acceptance
 description: Defines executable evidence for durable aliases, multi-turn history, learning, WebRTC pairing, and autonomous improvement.
 tags: [work, acceptance, aliases, conversation, livekit, evaluation]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T04:11:20Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-ACCEPTANCE
@@ -29,3 +29,6 @@ simo:
 - [ ] **A-012 — Evolving distinct personas:** Persona/runtime changes are versioned and diffable, stable alias identity and policy remain unchanged, and evaluation rejects convergence into indistinguishable aliases.
 - [ ] **A-013 — Reproducible quality:** Native/Python tests, strict static gates, documentation validation, knowledge regression, synthetic proofs, and privacy checks pass from pinned dependencies without human participation.
 - [ ] **A-014 — Publication:** Each bounded milestone has a conventional commit; closure records immutable references or a truthful no-publication reason and leaves no unexplained repository changes.
+- [ ] **A-015 — Single realtime owner:** LiveKit Agents owns room I/O, VAD, turn state, interruption, STT/LLM/TTS scheduling, and session events; Simo retains Flecs, persistence, knowledge, policy, and evaluation; no Pipecat runtime dependency, adapter, submodule, or current architecture claim remains after replacement evidence passes.
+
+`E-005` is historical predecessor evidence: it proves the two-process, self-hosted room, remote-audio-only subscription, bidirectional media, SID attribution, no-self-echo, and raw-audio-off portions of `A-008` through the former Pipecat adapter. It intentionally does not close `A-008` and cannot close `A-015`; both require a replacement LiveKit Agents run.

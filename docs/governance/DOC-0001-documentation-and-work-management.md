@@ -4,7 +4,7 @@ title: Simo documentation and work-management architecture
 description: Proposes a compact OKF 0.2 profile for durable knowledge, bounded work coordination, agent handoffs, and runtime evidence.
 tags: [governance, okf, work-management, agents, realtime, flecs]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-02T23:53:21Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
 verified: { by: codex/gpt-5.6-sol, at: 2026-08-02T23:53:21Z }
 stale_after: 2026-11-02
 sources:
@@ -33,6 +33,15 @@ sources:
   - id: pipecat-observer
     resource: ../../vendor/pipecat/src/pipecat/pipeline/worker_observer.py
     title: Pipecat worker-observer implementation at the pinned Simo revision
+  - id: livekit-agents-pipelines
+    resource: https://docs.livekit.io/agents/models/pipelines/
+    title: LiveKit Agents voice pipeline types
+  - id: livekit-agents-nodes
+    resource: https://docs.livekit.io/agents/logic/nodes/
+    title: LiveKit Agents pipeline nodes and hooks
+  - id: livekit-agents-room-io
+    resource: https://github.com/livekit/agents/blob/main/livekit-agents/livekit/agents/voice/room_io/room_io.py
+    title: LiveKit Agents RoomIO implementation
   - id: flecs-observers
     resource: ../../vendor/flecs/docs/ObserversManual.md
     title: Flecs observer manual at the pinned Simo revision
@@ -55,10 +64,12 @@ This remains the governing documentation proposal, not a runtime contract. Simo 
 
 The intended system boundary is:
 
-- Pipecat owns latency-sensitive media transport, frames, conversation pipelines, interruption, and realtime service composition. Its pinned README describes a realtime, composable voice/multimodal pipeline framework.[^pipecat-runtime]
+- Self-hosted LiveKit Server owns WebRTC rooms and media transport. LiveKit Agents is the accepted target owner for RoomIO, VAD, turn handling, interruption, and voice-model scheduling; its documented pipeline modes and node hooks support the local cascaded path and custom model/context adapters Simo requires.[^livekit-agents-pipelines][^livekit-agents-nodes]
 - Flecs owns the proposed live semantic world and bounded context-computation systems.
-- An adapter turns selected Pipecat observations into semantic events; a normal pipeline processor requests an immutable context snapshot before inference.
+- Bounded Simo session-event sinks turn attributed LiveKit transcript and lifecycle events into semantic events; a custom agent node requests an immutable context snapshot before inference. RoomIO already binds participant audio and session transcript/state events, but storage and OKF writes remain Simo-owned work outside callbacks.[^livekit-agents-room-io]
 - OKF owns durable, reviewable knowledge. It does not prescribe a runtime or replace domain schemas.[^okf-spec]
+
+The repository still contains the earlier implemented Pipecat path, whose pinned upstream describes the composable realtime pipeline framework used by the predecessor implementation.[^pipecat-runtime] [The LiveKit Agents runtime proposal](../architecture/livekit-agents-runtime.md) defines the evidence-gated migration; documentation must not describe the target as current runtime authority until replacement execution passes and Pipecat is removed.
 
 No document, Markdown link, Work Plan state, or evidence packet is Flecs runtime state. First-party code, configuration, schemas, tests, and observed execution are operational authority for the behavior they actually establish. Documents explain intent, ownership, decisions, and observed evidence, and must link back to that authority.
 
@@ -182,7 +193,7 @@ This is intentionally conservative for the repository's first phase. Path-disjoi
 
 ## Realtime-agent and Flecs documentation contract
 
-The founding design uses a two-speed architecture. Pipecat observers can enqueue frame observations without blocking the main pipeline, but the pinned implementation creates an unbounded `asyncio.Queue` per observer.[^pipecat-observer] Simo should therefore document a bounded, filtering semantic-event bridge and make backpressure/drop policy a first-party interface contract before implementation.
+The founding design uses a two-speed architecture. The predecessor Pipecat observer used framework scheduling while Simo imposed its own bounded filtering and deduplication because the pinned observer queue was unbounded.[^pipecat-observer] The accepted LiveKit Agents migration keeps that first-party bounded contract around session transcript, state, speech, metrics, and close events rather than introducing a second realtime framework. RoomIO and pipeline nodes own realtime orchestration; Simo's bridge owns value filtering, attribution, backpressure, Flecs promotion, and persistence handoff.[^livekit-agents-nodes][^livekit-agents-room-io]
 
 Flecs observers are reactive queries suited to infrequent structural changes; the upstream manual warns that they have query cost, cannot process events on multiple threads, and systems are generally more predictable for recurring work.[^flecs-observers] Flecs pipelines and staging support ordered systems, synchronization points, and per-thread command queues.[^flecs-systems] Therefore architecture concepts should distinguish:
 
@@ -212,7 +223,7 @@ Never move a terminal plan merely because it aged; moving changes OKF concept ID
 
 1. **Accept the profile.** Resolve the five decisions below and promote this draft into separate stable governance concepts.
 2. **Add deterministic validation.** Start with OKF/Simo metadata, links, indexes, IDs, and source-footnote joins; add Work Plan transition/collision gates before the first mutation plan.
-3. **Create first architecture leaves.** Document the Pipecat/Flecs/OKF boundary, semantic-event bridge, and context-snapshot contract as proposed concepts tied to the pinned dependency revisions.
+3. **Create first architecture leaves.** Document the realtime-orchestrator/Flecs/OKF boundary, semantic-event bridge, and context-snapshot contract as concepts tied to first-party source and proportional evidence.
 4. **Pilot one Work Plan.** Use the structure on the first vertical slice; measure retrieval size and handoff quality before building more automation.
 5. **Add agent routing.** Keep root guidance short: inspect status, start at `docs/index.md`, retrieve narrowly, preserve vendor/user state, use briefs/results for delegation, and serialize mutations.
 
@@ -231,7 +242,7 @@ Acceptance criteria:
 2. Choose whether `DOC-NNNN` aliases are worth maintaining before concepts begin to move; `ADR-NNNN` and Work IDs should remain.
 3. Set token warning thresholds after measuring the first real concepts; do not make length alone a conformance failure.
 4. Decide raw evidence retention based on privacy, reproducibility, and storage cost.
-5. Select the Python/C++ integration boundary before promoting any Pipecat-to-Flecs design from proposal to architecture authority.
+5. Verify the LiveKit Agents-to-Flecs integration boundary and remove the predecessor Pipecat path before promoting the target runtime proposal to stable architecture authority.
 
 [^okf-spec]: `vendor/knowledge-catalog/okf/SPEC.md:10-17, 44-67, 73-80, 134-149, 153-225, 277-282, 347-368, 409-430, 434-482, 502-549, 553-560, 718-759`.
 [^arcology-profile]: `/Users/mike/projects/arcology/Docs/governance/okf-producer-profile.md:26-53` (working-tree snapshot; Arcology-specific rules are explicitly separated from OKF).
@@ -241,5 +252,8 @@ Acceptance criteria:
 [^arcology-contracts]: `/Users/mike/projects/arcology/.agents/skills/orchestrate-arcology/references/contracts.md:1-69, 90-170, 192-225` (working-tree snapshot; some contract content is currently modified).
 [^pipecat-runtime]: `vendor/pipecat/README.md:7-29` at submodule commit `b114a367a32166207712e8a9c352215a6e24a0db`.
 [^pipecat-observer]: `vendor/pipecat/src/pipecat/pipeline/worker_observer.py:7-12, 46-57, 153-172` at submodule commit `b114a367a32166207712e8a9c352215a6e24a0db`.
+[^livekit-agents-pipelines]: LiveKit Agents voice pipeline types, verified 2026-08-03.
+[^livekit-agents-nodes]: LiveKit Agents pipeline nodes and hooks, verified 2026-08-03.
+[^livekit-agents-room-io]: LiveKit Agents `RoomIO` source on the mutable `main` branch, inspected 2026-08-03; refresh before relying on exact API details after 2026-09-03.
 [^flecs-observers]: `vendor/flecs/docs/ObserversManual.md:83-111` at submodule commit `fd9e5f67a933b78e82694c0c5c32a761f9d6d36d`.
 [^flecs-systems]: `vendor/flecs/docs/Systems.md:668-676, 1084-1114` at submodule commit `fd9e5f67a933b78e82694c0c5c32a761f9d6d36d`.

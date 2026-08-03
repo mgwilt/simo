@@ -1,10 +1,10 @@
 ---
 type: Work Execution
 title: Conversational identities execution
-description: Orders storage, conversation, learning, WebRTC, evaluation, promotion, and documentation milestones.
+description: Orders storage, conversation, learning, LiveKit Agents migration, WebRTC, evaluation, promotion, and documentation milestones.
 tags: [work, execution, milestones, aliases, livekit]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T04:11:20Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-EXECUTION
@@ -21,7 +21,8 @@ simo:
 | T-002 | Add persisted multi-turn recording, assistant speech-stage capture, transcript review, resume, and deletion | A-002, A-003, A-004, A-007 | complete |
 | T-003 | Add conversation/participant-scoped Flecs projections and bounded context retrieval | A-004, A-005 | complete |
 | T-004 | Add safe private relationship learning and alias OKF materialization | A-006, A-007 | complete |
-| T-005 | Add self-hosted LiveKit transport, participant isolation, and two-Simo room runner | A-008 | active |
-| T-006 | Add held-out scenarios, mechanics and conversation evaluators, and synthetic ground-truth metrics | A-009, A-010, A-012 | pending |
-| T-007 | Add candidate search, automatic promotion, canarying, rollback, and persona lineage | A-011, A-012 | pending |
-| T-008 | Promote durable architecture/interfaces/operations, run full verification, and close | A-013, A-014 | pending |
+| T-005 | Replace Pipecat orchestration with LiveKit Agents provider/node/event adapters; preserve the former path until replacement unit evidence passes | A-005, A-007, A-015 | active |
+| T-006 | Prove and persist the full two-process local-model WebRTC loop, then remove Pipecat and its submodule | A-008, A-013, A-015 | pending |
+| T-007 | Add held-out scenarios, mechanics and conversation evaluators, and synthetic ground-truth metrics | A-009, A-010, A-012 | pending |
+| T-008 | Add candidate search, automatic promotion, canarying, rollback, and persona lineage | A-011, A-012 | pending |
+| T-009 | Promote durable architecture/interfaces/operations, run full verification, and close | A-013, A-014, A-015 | pending |

@@ -4,12 +4,12 @@ title: Implement durable conversational identities and the improvement lab
 description: Tracks persisted aliases, reviewable multi-turn conversations, private relationship learning, LiveKit pairing, and bounded autonomous runtime improvement.
 tags: [work, aliases, conversation, persistence, livekit, learning, evaluation]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:10:22Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities
   authority: coordination
-  repository_paths: [README.md, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
+  repository_paths: [.gitmodules, README.md, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml, vendor/pipecat]
   owner: codex/gpt-5.6-sol
   work:
     schema_version: 1
@@ -19,11 +19,11 @@ simo:
     priority: p1
     accountable: codex/gpt-5.6-sol
     created_at: 2026-08-03T04:11:20Z
-    updated_at: 2026-08-03T05:10:22Z
+    updated_at: 2026-08-03T05:37:38Z
     depends_on: [W-20260802-finish-realtime-agent]
     knowledge_refs: [architecture/semantic-context-spine, architecture/local-macos-voice-pipeline, operations/runtime-observability, governance/DOC-0001-documentation-and-work-management]
-    write_paths: [README.md, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
-    next_action: Add a self-hosted LiveKit transport and a bounded two-process runner that publishes synthetic speech, subscribes only to remote audio, preserves participant attribution, and fails closed without a configured room service.
+    write_paths: [.gitmodules, README.md, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml, vendor/pipecat]
+    next_action: Add pinned LiveKit Agents and Silero dependencies, implement local STT/LLM/TTS and Flecs context hooks behind LiveKit Agents contracts, and preserve the Pipecat path only until replacement unit and live-room evidence passes.
     blocker: null
 ---
 # Implement durable conversational identities and the improvement lab
