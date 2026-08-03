@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import numpy as np
 
 os.environ.setdefault(
     "NLTK_DATA",
@@ -10,6 +13,7 @@ os.environ.setdefault(
 )
 
 from pipecat.audio.vad.vad_analyzer import VADState
+from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.frames.frames import (
     CancelFrame,
     InputAudioRawFrame,
@@ -23,6 +27,7 @@ from pipecat.processors.frame_processor import FrameDirection
 from simo.adapters.pipecat.inference import PCMUtteranceFrame
 from simo.adapters.pipecat.local_audio import (
     ManagedLocalAudioTransport,
+    ObservedSileroVADAnalyzer,
     SileroUtteranceProcessor,
 )
 from simo.operations import RuntimeMetrics
@@ -53,6 +58,21 @@ class FakeAnalyzer:
 
 
 class SileroUtteranceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_observed_silero_extracts_array_confidence(self) -> None:
+        metrics = RuntimeMetrics()
+        analyzer = object.__new__(ObservedSileroVADAnalyzer)
+        analyzer._runtime_metrics = metrics
+
+        with patch.object(
+            SileroVADAnalyzer,
+            "voice_confidence",
+            return_value=np.asarray([0.42], dtype=np.float32),
+        ):
+            confidence = analyzer.voice_confidence(b"pcm")
+
+        self.assertAlmostEqual(0.42, confidence, places=5)
+        self.assertEqual(1, metrics.snapshot()["vad_analysis"]["frames"])
+
     async def test_segments_pcm_and_emits_interruption_at_speech_start(self) -> None:
         metrics = RuntimeMetrics()
         analyzer = FakeAnalyzer(
@@ -89,7 +109,11 @@ class SileroUtteranceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(5 * 640, len(utterance.audio))  # type: ignore[union-attr]
         self.assertEqual([16_000], analyzer.sample_rates)
         self.assertEqual(
-            {"utterances_started": 1, "interruption_signals": 1},
+            {
+                "input_chunks": 5,
+                "utterances_started": 1,
+                "interruption_signals": 1,
+            },
             metrics.snapshot()["audio_activity"],
         )
 

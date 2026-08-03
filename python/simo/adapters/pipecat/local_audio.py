@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 import numpy as np
+from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADState
 from pipecat.frames.frames import (
     CancelFrame,
@@ -53,6 +54,19 @@ class VoiceActivityAnalyzer(Protocol):
     async def analyze_audio(self, buffer: bytes) -> VADState: ...
 
     async def cleanup(self) -> None: ...
+
+
+class ObservedSileroVADAnalyzer(SileroVADAnalyzer):
+    """Record privacy-safe neural confidence aggregates for live diagnostics."""
+
+    def __init__(self, *, runtime_metrics: RuntimeMetrics, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._runtime_metrics = runtime_metrics
+
+    def voice_confidence(self, buffer: bytes) -> float:
+        confidence = float(np.asarray(super().voice_confidence(buffer)).item())
+        self._runtime_metrics.record_vad_confidence(confidence)
+        return confidence
 
 
 class SileroUtteranceProcessor(FrameProcessor):
@@ -108,6 +122,8 @@ class SileroUtteranceProcessor(FrameProcessor):
             raise ValueError("local input must be positive-rate mono PCM")
         if not frame.audio or len(frame.audio) % 2:
             raise ValueError("local input must be non-empty 16-bit PCM")
+        if self._runtime_metrics is not None:
+            self._runtime_metrics.record_audio_input_chunk()
         if self._sample_rate not in (0, frame.sample_rate):
             raise ValueError("local input sample rate changed during an utterance")
         if self._sample_rate == 0:

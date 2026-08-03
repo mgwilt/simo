@@ -40,9 +40,13 @@ class RuntimeMetrics:
         self._errors_total = 0
         self._world_revision = 0
         self._audio_activity: dict[str, int] = {
+            "input_chunks": 0,
             "utterances_started": 0,
             "interruption_signals": 0,
         }
+        self._vad_frames = 0
+        self._vad_confidence_total = 0.0
+        self._vad_max_confidence = 0.0
         self._context_queue: dict[str, int] = {
             "depth": 0,
             "dropped": 0,
@@ -99,6 +103,18 @@ class RuntimeMetrics:
             if interruption_signaled:
                 self._audio_activity["interruption_signals"] += 1
 
+    def record_audio_input_chunk(self) -> None:
+        with self._lock:
+            self._audio_activity["input_chunks"] += 1
+
+    def record_vad_confidence(self, confidence: float) -> None:
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("VAD confidence must be between zero and one")
+        with self._lock:
+            self._vad_frames += 1
+            self._vad_confidence_total += confidence
+            self._vad_max_confidence = max(self._vad_max_confidence, confidence)
+
     def update_runtime_state(
         self,
         *,
@@ -148,6 +164,15 @@ class RuntimeMetrics:
                 "errors_total": self._errors_total,
                 "world_revision": self._world_revision,
                 "audio_activity": dict(self._audio_activity),
+                "vad_analysis": {
+                    "frames": self._vad_frames,
+                    "mean_confidence": round(
+                        self._vad_confidence_total / self._vad_frames, 6
+                    )
+                    if self._vad_frames
+                    else 0.0,
+                    "max_confidence": round(self._vad_max_confidence, 6),
+                },
                 "context_queue": dict(self._context_queue),
                 "observer_mailbox": dict(self._observer_mailbox),
                 "stages": {

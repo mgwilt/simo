@@ -37,6 +37,9 @@ class RuntimeMetricsTests(unittest.TestCase):
         now[0] += 15_000_000
         metrics.finish_stage(token)
         metrics.record_user_speech_start(interruption_signaled=True)
+        metrics.record_audio_input_chunk()
+        metrics.record_vad_confidence(0.25)
+        metrics.record_vad_confidence(0.75)
         metrics.update_runtime_state(
             world_revision=3,
             context_queue_depth=1,
@@ -56,6 +59,11 @@ class RuntimeMetricsTests(unittest.TestCase):
         self.assertEqual(1, snapshot["stages"]["tts"]["calls"])
         self.assertEqual(1, snapshot["audio_activity"]["utterances_started"])
         self.assertEqual(1, snapshot["audio_activity"]["interruption_signals"])
+        self.assertEqual(1, snapshot["audio_activity"]["input_chunks"])
+        self.assertEqual(
+            {"frames": 2, "mean_confidence": 0.5, "max_confidence": 0.75},
+            snapshot["vad_analysis"],
+        )
         self.assertEqual(25.0, snapshot["stages"]["tts"]["first_output_ms"])
         self.assertEqual(40.0, snapshot["stages"]["tts"]["last_ms"])
         self.assertTrue(snapshot["clean_shutdown"])
