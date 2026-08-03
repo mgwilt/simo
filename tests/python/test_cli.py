@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
 
 from simo.cli import main
 
@@ -53,6 +54,22 @@ class CliTests(unittest.TestCase):
         structured = [json.loads(line) for line in events.getvalue().splitlines()]
         self.assertEqual("starting", structured[0]["phase"])
         self.assertEqual("metrics", structured[-1]["event"])
+
+    def test_terminal_interrupt_returns_shell_status_130(self) -> None:
+        errors = io.StringIO()
+
+        def interrupt(coroutine: object) -> None:
+            coroutine.close()  # type: ignore[attr-defined]
+            raise KeyboardInterrupt
+
+        with (
+            redirect_stderr(errors),
+            patch("simo.cli.asyncio.run", side_effect=interrupt),
+        ):
+            status = main(["headless", "--transcript", "private"])
+
+        self.assertEqual(130, status)
+        self.assertEqual("simo: interrupted", errors.getvalue().strip())
 
 
 if __name__ == "__main__":
