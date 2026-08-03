@@ -116,11 +116,12 @@ class MLXTextGenerator:
 
             generate_function = generate
         model, tokenizer = self._loaded
+        formatted_prompt = _format_chat_prompt(tokenizer, prompt)
         return str(
             generate_function(
                 model,
                 tokenizer,
-                prompt=prompt,
+                prompt=formatted_prompt,
                 max_tokens=max_tokens,
                 verbose=False,
             )
@@ -247,3 +248,25 @@ def _float_audio_to_pcm_s16le(audio: Any) -> bytes:
 
     samples = np.asarray(audio, dtype=np.float32).reshape(-1)
     return (np.clip(samples, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
+
+
+def _format_chat_prompt(tokenizer: Any, prompt: str) -> Any:
+    """Use a model's chat template while keeping raw-tokenizer compatibility."""
+
+    apply_template = getattr(tokenizer, "apply_chat_template", None)
+    if not callable(apply_template):
+        return prompt
+    messages = [{"role": "user", "content": prompt}]
+    try:
+        return apply_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=False,
+            enable_thinking=False,
+        )
+    except TypeError:
+        return apply_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=False,
+        )

@@ -95,7 +95,7 @@ class LocalTextInferenceProcessor(FrameProcessor):
             prompt = (
                 "You are Simo, a concise realtime voice agent.\n\n"
                 f"{frame.prompt}\n\n"
-                f"Current user: {frame.user_text}\nAssistant:"
+                f"Current user: {frame.user_text}"
             )
             metrics = self._runtime_metrics
             token = metrics.start_stage("text_inference") if metrics else None

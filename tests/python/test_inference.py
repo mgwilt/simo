@@ -83,6 +83,39 @@ class InferenceBoundaryTests(unittest.TestCase):
         self.assertEqual(32, calls[0]["max_tokens"])
         self.assertFalse(calls[0]["verbose"])
 
+    def test_mlx_text_generator_applies_chat_template_without_thinking(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        class FakeTokenizer:
+            def apply_chat_template(
+                self,
+                messages: list[dict[str, str]],
+                **kwargs: object,
+            ) -> str:
+                calls.append({"messages": messages, **kwargs})
+                return "formatted-chat-prompt"
+
+        generated: list[dict[str, object]] = []
+
+        def generate(model: object, tokenizer: object, **kwargs: object) -> str:
+            generated.append(kwargs)
+            return "ready"
+
+        generator = MLXTextGenerator(
+            Path("/models/qwen"),
+            model_loader=lambda path: ("model", FakeTokenizer()),
+            generate_function=generate,
+        )
+
+        self.assertEqual(
+            "ready", asyncio.run(generator.generate("hello", max_tokens=8))
+        )
+        self.assertEqual("formatted-chat-prompt", generated[0]["prompt"])
+        self.assertEqual([{"role": "user", "content": "hello"}], calls[0]["messages"])
+        self.assertTrue(calls[0]["add_generation_prompt"])
+        self.assertFalse(calls[0]["tokenize"])
+        self.assertFalse(calls[0]["enable_thinking"])
+
 
 class FakeRecognizer:
     def __init__(self, *, error: Exception | None = None) -> None:
