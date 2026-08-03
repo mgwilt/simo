@@ -8,11 +8,13 @@ import shutil
 import sqlite3
 import tempfile
 import threading
+import time
 import zipfile
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Final, cast
 from uuid import UUID, uuid4
@@ -45,6 +47,18 @@ class RecordNotFoundError(SimoDataError):
 
 class RecordConflictError(SimoDataError):
     """Raised when an operation would overwrite an existing record."""
+
+
+class ConversationEventType(StrEnum):
+    """Version-one persisted conversation event vocabulary."""
+
+    USER_TRANSCRIPT_FINAL = "user.transcript.final"
+    ASSISTANT_GENERATED = "assistant.generated"
+    ASSISTANT_TTS_SUBMITTED = "assistant.tts.submitted"
+    ASSISTANT_SPOKEN = "assistant.spoken"
+    TURN_INTERRUPTED = "turn.interrupted"
+    CONVERSATION_RESUMED = "conversation.resumed"
+    CONVERSATION_COMPLETED = "conversation.completed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +164,21 @@ class ConversationDetail:
             "participants": [participant.as_dict() for participant in self.participants],
             "events": [event.as_dict() for event in self.events],
         }
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptTurn:
+    sequence: int
+    participant_id: str
+    display_name: str
+    kind: str
+    text: str
+    wall_time: str
+    interrupted: bool
+    event_type: str
+
+    def as_dict(self) -> dict[str, object]:
+        return cast(dict[str, object], asdict(self))
 
 
 def resolve_data_root(
@@ -505,6 +534,293 @@ class SimoStore:
             )
             connection.commit()
         return ConversationDetail(conversation, (participant,), ())
+
+    def add_participant(
+        self,
+        conversation_id: str,
+        participant_id: str,
+        *,
+        kind: str,
+        display_name: str,
+        alias_id: str | None = None,
+        transport_participant_id: str | None = None,
+    ) -> ParticipantRecord:
+        selected_id = _nonempty(participant_id, "participant ID")
+        selected_kind = _nonempty(kind, "participant kind")
+        if selected_kind not in {"alias", "human", "external"}:
+            raise ValueError("participant kind must be alias, human, or external")
+        selected_name = _nonempty(display_name, "participant display name")
+        if selected_kind == "alias" and alias_id is None:
+            raise ValueError("alias participant requires an alias ID")
+        if alias_id is not None:
+            self.get_alias(alias_id)
+        timestamp = _utc_now()
+        participant = ParticipantRecord(
+            conversation_id,
+            selected_id,
+            selected_kind,
+            alias_id,
+            selected_name,
+            transport_participant_id,
+            timestamp,
+        )
+        with self._writer_lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if not connection.execute(
+                "SELECT 1 FROM conversations WHERE conversation_id = ?", (conversation_id,)
+            ).fetchone():
+                raise RecordNotFoundError(f"conversation not found: {conversation_id}")
+            existing = cast(
+                dict[str, object] | None,
+                connection.execute(
+                    """
+                    SELECT * FROM participants
+                    WHERE conversation_id = ? AND participant_id = ?
+                    """,
+                    (conversation_id, selected_id),
+                ).fetchone(),
+            )
+            if existing is not None:
+                current = _participant_from_row(existing)
+                comparable = (
+                    current.kind,
+                    current.alias_id,
+                    current.display_name,
+                    current.transport_participant_id,
+                )
+                requested = (
+                    participant.kind,
+                    participant.alias_id,
+                    participant.display_name,
+                    participant.transport_participant_id,
+                )
+                if comparable != requested:
+                    raise RecordConflictError(
+                        f"participant already exists with different identity: {selected_id}"
+                    )
+                return current
+            connection.execute(
+                """
+                INSERT INTO participants (
+                    conversation_id, participant_id, kind, alias_id, display_name,
+                    transport_participant_id, joined_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    participant.conversation_id,
+                    participant.participant_id,
+                    participant.kind,
+                    participant.alias_id,
+                    participant.display_name,
+                    participant.transport_participant_id,
+                    participant.joined_at,
+                ),
+            )
+            connection.commit()
+        return participant
+
+    def append_event(
+        self,
+        conversation_id: str,
+        event_type: ConversationEventType | str,
+        *,
+        participant_id: str | None = None,
+        text: str | None = None,
+        interrupted: bool = False,
+        persona_version: int | None = None,
+        runtime_profile_version: int | None = None,
+        metadata: Mapping[str, object] | None = None,
+        monotonic_ns: int | None = None,
+        event_id: str | None = None,
+    ) -> ConversationEvent:
+        selected_type = ConversationEventType(event_type)
+        if text is not None and not text.strip():
+            raise ValueError("conversation event text must not be empty")
+        selected_metadata = dict(metadata or {})
+        _ensure_json_value(selected_metadata, "conversation event metadata")
+        selected_event_id = event_id or str(uuid4())
+        _validate_uuid(selected_event_id, "event ID")
+        wall_time = _utc_now()
+        selected_monotonic = time.monotonic_ns() if monotonic_ns is None else monotonic_ns
+        if selected_monotonic < 0:
+            raise ValueError("event monotonic timestamp must not be negative")
+        with self._writer_lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            conversation = cast(
+                dict[str, object] | None,
+                connection.execute(
+                    "SELECT * FROM conversations WHERE conversation_id = ?",
+                    (conversation_id,),
+                ).fetchone(),
+            )
+            if conversation is None:
+                raise RecordNotFoundError(f"conversation not found: {conversation_id}")
+            if (
+                participant_id is not None
+                and not connection.execute(
+                    """
+                SELECT 1 FROM participants
+                WHERE conversation_id = ? AND participant_id = ?
+                """,
+                    (conversation_id, participant_id),
+                ).fetchone()
+            ):
+                raise RecordNotFoundError(
+                    f"participant not found in conversation: {participant_id}"
+                )
+            sequence_row = cast(
+                dict[str, object],
+                connection.execute(
+                    """
+                    SELECT COALESCE(MAX(sequence), 0) AS maximum_sequence
+                    FROM conversation_events WHERE conversation_id = ?
+                    """,
+                    (conversation_id,),
+                ).fetchone(),
+            )
+            sequence = _required_int(sequence_row, "maximum_sequence") + 1
+            event = ConversationEvent(
+                selected_event_id,
+                conversation_id,
+                sequence,
+                participant_id,
+                selected_type.value,
+                wall_time,
+                selected_monotonic,
+                text.strip() if text is not None else None,
+                interrupted,
+                persona_version,
+                runtime_profile_version,
+                selected_metadata,
+            )
+            connection.execute(
+                """
+                INSERT INTO conversation_events (
+                    event_id, conversation_id, sequence, participant_id, event_type,
+                    wall_time, monotonic_ns, text, interrupted, persona_version,
+                    runtime_profile_version, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.conversation_id,
+                    event.sequence,
+                    event.participant_id,
+                    event.event_type,
+                    event.wall_time,
+                    event.monotonic_ns,
+                    event.text,
+                    int(event.interrupted),
+                    event.persona_version,
+                    event.runtime_profile_version,
+                    _json_dump(event.metadata),
+                ),
+            )
+            connection.execute(
+                "UPDATE conversations SET updated_at = ? WHERE conversation_id = ?",
+                (wall_time, conversation_id),
+            )
+            connection.commit()
+        return event
+
+    def resume_conversation(
+        self, conversation_id: str, *, alias_id: str | None = None
+    ) -> ConversationDetail:
+        with self._writer_lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if not connection.execute(
+                "SELECT 1 FROM conversations WHERE conversation_id = ?", (conversation_id,)
+            ).fetchone():
+                raise RecordNotFoundError(f"conversation not found: {conversation_id}")
+            if (
+                alias_id is not None
+                and not connection.execute(
+                    """
+                SELECT 1 FROM participants
+                WHERE conversation_id = ? AND alias_id = ?
+                """,
+                    (conversation_id, alias_id),
+                ).fetchone()
+            ):
+                raise RecordConflictError(
+                    f"conversation {conversation_id} does not contain alias {alias_id}"
+                )
+            timestamp = _utc_now()
+            connection.execute(
+                """
+                UPDATE conversations SET status = 'active', updated_at = ?
+                WHERE conversation_id = ?
+                """,
+                (timestamp, conversation_id),
+            )
+            connection.commit()
+        self.append_event(
+            conversation_id,
+            ConversationEventType.CONVERSATION_RESUMED,
+            metadata={"alias_id": alias_id} if alias_id is not None else {},
+        )
+        return self.get_conversation(conversation_id)
+
+    def complete_conversation(self, conversation_id: str) -> ConversationDetail:
+        self.append_event(conversation_id, ConversationEventType.CONVERSATION_COMPLETED)
+        with self._writer_lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp = _utc_now()
+            cursor = connection.execute(
+                """
+                UPDATE conversations SET status = 'completed', updated_at = ?
+                WHERE conversation_id = ?
+                """,
+                (timestamp, conversation_id),
+            )
+            if cursor.rowcount == 0:
+                raise RecordNotFoundError(f"conversation not found: {conversation_id}")
+            connection.commit()
+        return self.get_conversation(conversation_id)
+
+    def transcript(self, conversation_id: str) -> tuple[TranscriptTurn, ...]:
+        detail = self.get_conversation(conversation_id)
+        participants = {item.participant_id: item for item in detail.participants}
+        selected: list[TranscriptTurn] = []
+        primary_types = {
+            ConversationEventType.USER_TRANSCRIPT_FINAL.value,
+            ConversationEventType.ASSISTANT_SPOKEN.value,
+        }
+        for event in detail.events:
+            if event.event_type not in primary_types or event.text is None:
+                continue
+            if event.participant_id is None or event.participant_id not in participants:
+                raise SimoDataError(
+                    f"transcript event {event.event_id} has no attributed participant"
+                )
+            participant = participants[event.participant_id]
+            selected.append(
+                TranscriptTurn(
+                    event.sequence,
+                    participant.participant_id,
+                    participant.display_name,
+                    participant.kind,
+                    event.text,
+                    event.wall_time,
+                    event.interrupted,
+                    event.event_type,
+                )
+            )
+        return tuple(selected)
+
+    def export_conversation(self, conversation_id: str, destination: Path | str) -> Path:
+        detail = self.get_conversation(conversation_id)
+        target = Path(destination).expanduser().resolve()
+        if target.exists():
+            raise RecordConflictError(f"export destination already exists: {target}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, object] = {
+            "schema": "simo.conversation-export.v1",
+            **detail.as_dict(),
+            "transcript": [item.as_dict() for item in self.transcript(conversation_id)],
+        }
+        _atomic_text(target, f"{json.dumps(payload, indent=2, ensure_ascii=False)}\n")
+        return target
 
     def list_conversations(self, alias_id: str | None = None) -> tuple[ConversationRecord, ...]:
         parameters: tuple[object, ...] = ()

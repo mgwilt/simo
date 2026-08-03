@@ -22,6 +22,7 @@ os.environ.setdefault(
 )
 
 from simo.config import RunMode, RuntimeConfig
+from simo.conversation import PersistedConversationRuntime
 from simo.doctor import DoctorReport, inspect_runtime
 from simo.operations import JsonEventSink
 from simo.persistence import SimoDataError, SimoStore
@@ -96,12 +97,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     conversation_show.add_argument("conversation_id")
     conversation_show.add_argument("--json", action="store_true", dest="as_json")
+    conversation_resume = conversation_commands.add_parser(
+        "resume", help="mark a persisted conversation active and record resumption"
+    )
+    conversation_resume.add_argument("conversation_id")
+    conversation_resume.add_argument("--alias", dest="alias_id")
+    conversation_resume.add_argument("--json", action="store_true", dest="as_json")
+    conversation_export = conversation_commands.add_parser(
+        "export", help="export conversation events and primary transcript as JSON"
+    )
+    conversation_export.add_argument("conversation_id")
+    conversation_export.add_argument("destination", type=Path)
+    conversation_export.add_argument("--json", action="store_true", dest="as_json")
     conversation_delete = conversation_commands.add_parser(
         "delete", help="permanently delete a conversation and derived records"
     )
     conversation_delete.add_argument("conversation_id")
     conversation_delete.add_argument("--yes", action="store_true")
     conversation_delete.add_argument("--json", action="store_true", dest="as_json")
+
+    talk = subcommands.add_parser(
+        "talk", help="run and persist synthetic turns through Pipecat and Flecs"
+    )
+    talk.add_argument("--alias", required=True, dest="alias_id")
+    talk.add_argument("--conversation", dest="conversation_id")
+    talk.add_argument(
+        "--turn",
+        action="append",
+        required=True,
+        help="synthetic final user turn; repeat for a multi-turn conversation",
+    )
+    talk.add_argument("--complete", action="store_true")
+    talk.add_argument("--json", action="store_true", dest="as_json")
 
     doctor = subcommands.add_parser("doctor", help="inspect runtime prerequisites")
     doctor.add_argument("--mode", choices=tuple(RunMode), default=RunMode.HEADLESS)
@@ -176,6 +203,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                     }
                 )
             )
+            return 0
+        if command == "talk":
+            report = inspect_runtime(config)
+            if not report.ready:
+                _print_report(report, False)
+                return 1
+            store = SimoStore(_arg_optional_path(args, "data_dir"))
+            result = asyncio.run(
+                PersistedConversationRuntime(store, config).run(
+                    _arg_str(args, "alias_id"),
+                    _arg_str_list(args, "turn"),
+                    conversation_id=_arg_optional_str(args, "conversation_id"),
+                    complete=_arg_bool(args, "complete"),
+                )
+            )
+            _print_structured(result.as_dict(), _arg_bool(args, "as_json"))
             return 0
         if args.command == "live":
             report = inspect_runtime(config)
@@ -295,8 +338,23 @@ def _run_conversation_command(store: SimoStore, args: argparse.Namespace) -> int
         _print_structured([item.as_dict() for item in conversations], as_json)
         return 0
     if command == "show":
-        conversation = store.get_conversation(_arg_str(args, "conversation_id"))
+        conversation_id = _arg_str(args, "conversation_id")
+        conversation = store.get_conversation(conversation_id)
+        payload = conversation.as_dict()
+        payload["transcript"] = [item.as_dict() for item in store.transcript(conversation_id)]
+        _print_structured(payload, as_json)
+        return 0
+    if command == "resume":
+        conversation = store.resume_conversation(
+            _arg_str(args, "conversation_id"),
+            alias_id=_arg_optional_str(args, "alias_id"),
+        )
         _print_structured(conversation.as_dict(), as_json)
+        return 0
+    if command == "export":
+        conversation_id = _arg_str(args, "conversation_id")
+        path = store.export_conversation(conversation_id, _arg_path(args, "destination"))
+        _print_structured({"conversation_id": conversation_id, "path": str(path)}, as_json)
         return 0
     if command == "delete":
         if not _arg_bool(args, "yes"):
@@ -369,6 +427,18 @@ def _arg_bool(args: argparse.Namespace, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a boolean")
     return value
+
+
+def _arg_str_list(args: argparse.Namespace, name: str) -> list[str]:
+    value = _arg_value(args, name)
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list")
+    selected: list[str] = []
+    for item in cast(list[object], value):
+        if not isinstance(item, str):
+            raise TypeError(f"{name} entries must be strings")
+        selected.append(item)
+    return selected
 
 
 def _print_report(report: DoctorReport, as_json: bool) -> None:

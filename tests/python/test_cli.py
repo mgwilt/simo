@@ -17,6 +17,97 @@ from simo.doctor import DoctorReport
 
 
 class CliTests(unittest.TestCase):
+    def test_talk_resumes_and_exports_a_persisted_transcript(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            alias_output = io.StringIO()
+            with redirect_stdout(alias_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(root / "data"),
+                            "alias",
+                            "create",
+                            "Mira",
+                            "--json",
+                        ]
+                    ),
+                )
+            alias = cast(dict[str, object], cast(object, json.loads(alias_output.getvalue())))
+            alias_id = cast(str, alias["alias_id"])
+
+            talk_output = io.StringIO()
+            with redirect_stdout(talk_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(root / "data"),
+                            "talk",
+                            "--alias",
+                            alias_id,
+                            "--turn",
+                            "First turn.",
+                            "--turn",
+                            "Second turn.",
+                            "--json",
+                        ]
+                    ),
+                )
+            result = cast(dict[str, object], cast(object, json.loads(talk_output.getvalue())))
+            conversation_id = cast(str, result["conversation_id"])
+            transcript = cast(list[object], result["transcript"])
+            self.assertEqual(4, len(transcript))
+
+            resumed_output = io.StringIO()
+            with redirect_stdout(resumed_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(root / "data"),
+                            "talk",
+                            "--alias",
+                            alias_id,
+                            "--conversation",
+                            conversation_id,
+                            "--turn",
+                            "Third turn after restart.",
+                            "--complete",
+                            "--json",
+                        ]
+                    ),
+                )
+            resumed = cast(dict[str, object], cast(object, json.loads(resumed_output.getvalue())))
+            self.assertEqual(6, len(cast(list[object], resumed["transcript"])))
+
+            export_path = root / "conversation.json"
+            export_output = io.StringIO()
+            with redirect_stdout(export_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(root / "data"),
+                            "conversation",
+                            "export",
+                            conversation_id,
+                            str(export_path),
+                            "--json",
+                        ]
+                    ),
+                )
+            exported = cast(
+                dict[str, object],
+                cast(object, json.loads(export_path.read_text(encoding="utf-8"))),
+            )
+            self.assertEqual(6, len(cast(list[object], exported["transcript"])))
+
     def test_alias_and_conversation_commands_are_structured_and_persisted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             data_dir = Path(temporary) / "data"

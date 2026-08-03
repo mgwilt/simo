@@ -15,6 +15,7 @@ from pipecat.frames.frames import (
     StartFrame,
     TranscriptionFrame,
     TTSAudioRawFrame,
+    TTSTextFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.processors.frame_processor import (
@@ -23,6 +24,7 @@ from pipecat.processors.frame_processor import (
     FrameProcessorSetup,
 )
 from pipecat.utils.asyncio.task_manager import TaskManager
+from pipecat.utils.text.base_text_aggregator import AggregationType
 
 from simo.adapters.pipecat.observer import PipecatSemanticObserver
 from simo.adapters.pipecat.semantic_turn import SemanticTurnFrame, SemanticTurnProcessor
@@ -100,6 +102,13 @@ class DeterministicTTS(FrameProcessor):
                     ),
                     direction,
                 )
+                spoken = TTSTextFrame(
+                    text=frame.text,
+                    aggregated_by=AggregationType.SENTENCE,
+                )
+                spoken.will_be_spoken = True
+                spoken.context_id = str(frame.id)
+                await self.push_frame(spoken, direction)
                 if metrics is not None and token is not None:
                     metrics.first_output(token)
             except Exception:

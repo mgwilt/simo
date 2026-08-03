@@ -4,7 +4,7 @@ import time
 import unittest
 from dataclasses import FrozenInstanceError, replace
 
-from pipecat.frames.frames import LLMTextFrame, TTSAudioRawFrame
+from pipecat.frames.frames import LLMTextFrame, TTSAudioRawFrame, TTSTextFrame
 from simo.adapters.pipecat.deterministic import run_deterministic_pipeline
 from simo.adapters.pipecat.semantic_turn import (
     ContextItem,
@@ -64,6 +64,9 @@ class DeterministicPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, len(audio))
         self.assertTrue(all(frame.audio for frame in audio))
         self.assertTrue(all(frame.sample_rate == 24_000 for frame in audio))
+        spoken = [frame for frame in result.frames if isinstance(frame, TTSTextFrame)]
+        self.assertEqual(2, len(spoken))
+        self.assertTrue(all(frame.will_be_spoken for frame in spoken))
 
 
 if __name__ == "__main__":

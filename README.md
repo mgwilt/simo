@@ -48,7 +48,21 @@ uv run simo conversation show <conversation-id> --json
 uv run simo conversation delete <conversation-id> --yes
 ```
 
-This foundation does not yet claim frame-to-transcript recording, restart-resumed inference, relationship learning, or WebRTC rooms; those remain later milestones in `W-20260802-conversational-identities`.
+Use `talk` to persist supplied synthetic turns through Pipecat, Flecs, deterministic text inference, and deterministic TTS. The result records final user text, generated assistant text, TTS submission, confirmed spoken text, and the primary review transcript as distinct ordered events:
+
+```sh
+uv run simo talk --alias <alias-id> \
+  --turn "Hello" \
+  --turn "Remember that the door is blue" \
+  --json
+uv run simo talk --alias <alias-id> \
+  --conversation <conversation-id> \
+  --turn "Continue after restart" \
+  --complete
+uv run simo conversation export <conversation-id> ./conversation.json
+```
+
+This deterministic persisted path opens no audio device and loads no model. It proves ordered recording, review, export, and restart reconstruction; relationship learning, live-model transcript wiring, isolated multi-alias Flecs sessions, and WebRTC rooms remain later milestones in `W-20260802-conversational-identities`.
 
 ## Preflight
 
@@ -134,7 +148,7 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_TEXT_MODEL` | `mlx-community/Qwen3.5-4B-4bit` |
 | `SIMO_TEXT_REVISION` | `0e7ffd5c629ef7719d4cbc04069232580bfa9d9c` |
 
-Runtime configuration, model weights, generated audio, and local caches are ignored by Git. Simo does not log or persist raw audio or transcripts by default; the current headless JSON output intentionally contains the synthetic transcripts supplied on its command line.
+Runtime configuration, model weights, generated audio, and local caches are ignored by Git. Headless and live commands do not persist raw audio or transcripts implicitly. The explicit alias/conversation commands persist text and timing in the selected local data directory, while raw audio remains off. The current headless JSON output intentionally contains the synthetic transcripts supplied on its command line.
 
 ## Operations and privacy
 

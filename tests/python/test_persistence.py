@@ -10,6 +10,7 @@ from typing import cast
 import yaml
 from simo.persistence import (
     ALIAS_EXPORT_SCHEMA,
+    ConversationEventType,
     RecordConflictError,
     RecordNotFoundError,
     SimoDataError,
@@ -141,6 +142,59 @@ class PersistenceTests(unittest.TestCase):
             store.delete_conversation(conversation.conversation.conversation_id)
             with self.assertRaises(RecordNotFoundError):
                 store.get_conversation(conversation.conversation.conversation_id)
+
+    def test_transcript_uses_final_user_and_spoken_assistant_events(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = SimoStore(root / "data")
+            alias = store.create_alias("Ada")
+            detail = store.create_conversation(alias.alias_id)
+            conversation_id = detail.conversation.conversation_id
+            human = store.add_participant(
+                conversation_id,
+                "human:fixture",
+                kind="human",
+                display_name="Fixture user",
+            )
+            store.append_event(
+                conversation_id,
+                ConversationEventType.USER_TRANSCRIPT_FINAL,
+                participant_id=human.participant_id,
+                text="Hello Ada.",
+            )
+            store.append_event(
+                conversation_id,
+                ConversationEventType.ASSISTANT_GENERATED,
+                participant_id=f"alias:{alias.alias_id}",
+                text="Hello there, plus an unspoken tail.",
+            )
+            store.append_event(
+                conversation_id,
+                ConversationEventType.ASSISTANT_TTS_SUBMITTED,
+                participant_id=f"alias:{alias.alias_id}",
+                text="Hello there.",
+            )
+            store.append_event(
+                conversation_id,
+                ConversationEventType.ASSISTANT_SPOKEN,
+                participant_id=f"alias:{alias.alias_id}",
+                text="Hello there.",
+                interrupted=True,
+                persona_version=1,
+                runtime_profile_version=1,
+            )
+
+            transcript = store.transcript(conversation_id)
+            self.assertEqual(["Hello Ada.", "Hello there."], [turn.text for turn in transcript])
+            self.assertTrue(transcript[1].interrupted)
+            export_path = store.export_conversation(conversation_id, root / "conversation.json")
+            exported = cast(
+                dict[str, object],
+                cast(object, json.loads(export_path.read_text(encoding="utf-8"))),
+            )
+            self.assertEqual("simo.conversation-export.v1", exported["schema"])
+            exported_transcript = cast(list[object], exported["transcript"])
+            self.assertEqual(2, len(exported_transcript))
 
     def test_import_rejects_path_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
