@@ -67,7 +67,7 @@ If live mode does not detect a quiet headset microphone, calibrate it before cha
 uv run simo calibrate-mic
 ```
 
-Remain quiet during the first prompt and speak continuously during the second. The command retains only aggregate RMS values, never audio or transcripts. It prints a `SIMO_VAD_START_RMS=...` recommendation only when speech is clearly separated from ambient sound; otherwise it fails closed and asks you to check mute and retry.
+Wait quietly until you hear one tone, then speak normally until you hear two tones. Simo measures the ambient phase, detects speech onset, and ends the speaking phase itself, so no visual timing or interaction is required. The command retains only aggregate RMS values, never audio or transcripts. It prints a `SIMO_VAD_START_RMS=...` recommendation only when speech is clearly separated from ambient sound; otherwise it fails closed and asks you to check mute and retry.
 
 The live pipeline is local microphone → bounded energy utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, and the native Flecs owner.
 
