@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:17:32Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -28,5 +28,6 @@ simo:
 - Progress: `T-008` has the installed/locked PyAudio transport, typed device/VAD configuration, bounded utterance and interruption processor, complete local Pipecat pipeline owner, explicit PortAudio cleanup, checksum-pinned small-data setup, fake-inference worker lifecycle proof, immutable model installer, and outside-sandbox device preflight at `7f390b1` and `3be0e37`.
 - Completed model gate: after authorization, all three pinned repositories downloaded with matching completion markers and live doctor became ready. Revisions `1760104`, `1ce3928`, and `ad49653` correct Qwen chat templating, add repeatable cold/warm proofs, and execute real Parakeet STT → Flecs context → Qwen text → Qwen TTS through Pipecat. `E-009` verifies `A-006` and `A-007`.
 - Live attempt: the process remained ready for 108 seconds and shut down cleanly with zero errors or drops, but no utterance crossed the configured energy gate. A subsequent three-second aggregate-only microphone sample found peak RMS `0.012764` against the configured `0.02` start threshold. No raw audio was stored or transcribed during that diagnostic.
+- Completed quality gate: revision `8b1cb34` locks Ruff 0.12.11 and Pyright 1.1.411, passes the native build, 56 Python tests, first-party runtime type checking with zero findings, repository-wide first-party lint/format, 33-concept documentation validation, five knowledge regression tests, and whitespace validation. `A-004`, `A-009`, and `A-010` are now satisfied.
 - Blocker: none.
 - Next action: calibrate the available Arctis microphone threshold with a present speaker, then run the human three-turn context and interruption acceptance. Do not claim `A-008` from the no-utterance attempt.

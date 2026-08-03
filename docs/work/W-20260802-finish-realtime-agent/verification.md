@@ -4,7 +4,7 @@ title: Finish Simo verification
 description: Records proportional checks for the complete realtime-agent product.
 tags: [work, verification, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:17:32Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-VERIFICATION
@@ -24,4 +24,5 @@ simo:
 - `E-007` records partial `A-004`, `A-008`, and `A-009` evidence at `7f390b1`: the local 16/24 kHz Pipecat topology executes worker setup/teardown with fake inference; energy turn detection emits interruption and bounded utterance frames; PortAudio ownership is explicit; outside-sandbox preflight sees MLX Metal and the actual default Mac audio devices.
 - `E-008` records the model-download checkpoint at `3be0e37`: the installer is plan-only without explicit acceptance, resolves three immutable repository revisions totaling 6.90 GiB, reserves 10.62 GiB, verifies required files before writing atomic completion markers, and keeps doctor closed for incomplete or mismatched models.
 - `E-009` verifies `A-006` and `A-007` at `ad49653`: immutable model markers pass doctor; real Qwen text, Qwen TTS, and Parakeet STT execute on MLX Metal; synthetic speech round-trips exactly; the same providers complete one Pipecat/Flecs semantic turn with zero errors or drops; and generated PCM plays through default PortAudio output.
-- Human microphone capture, real playback interruption, cancellation during a Metal kernel, and three-turn live latency remain unverified. `A-008` remains open; `A-004` remains open until real playback interruption is observed. The no-utterance live attempt proves readiness and cleanup only.
+- `E-010` verifies `A-010` at `8b1cb34`: the native build, 56 Python tests, first-party runtime Pyright, first-party Ruff lint/format, documentation validation, five knowledge tests, and whitespace validation all pass from the locked environment. Together `E-002`, `E-005`, `E-007`, and `E-009` satisfy `A-004`; `E-006`, `E-007`, and `E-009` satisfy `A-009`.
+- Human microphone capture, real playback interruption, cancellation during a Metal kernel, and three-turn live latency remain unverified. `A-008` and final publication record `A-011` remain open. The no-utterance live attempt proves readiness and cleanup only.

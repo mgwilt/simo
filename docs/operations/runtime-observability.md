@@ -4,8 +4,8 @@ title: Runtime observability and shutdown
 description: Defines Simo's implemented privacy-safe event schema, aggregate runtime metrics, and bounded shutdown behavior.
 tags: [operations, observability, privacy, lifecycle, metrics, shutdown]
 status: stable
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:14:24Z }
-verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:14:24Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:17:32Z }
+verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:17:32Z }
 sources:
   - id: operations-implementation
     resource: ../../python/simo/operations.py
@@ -16,6 +16,9 @@ sources:
   - id: operations-tests
     resource: ../../tests/python/test_operations.py
     title: Simo operational behavior tests
+  - id: model-proof
+    resource: ../../python/simo/model_proof.py
+    title: Simo executable real-model proof
 simo:
   profile_version: 1
   stable_id: DOC-0004
@@ -55,10 +58,11 @@ Normal completion and task cancellation unwind the Pipecat pipeline and native F
 
 ## Evidence boundary
 
-Revision `e5a6f6a408c3d544884ff87502091f7977b7d84b` passes the native build, 37 Python tests, documentation and knowledge validation, changed-file Ruff lint/format checks, and whitespace validation. This proves the headless lifecycle, pure JSONL event stream, aggregate metric contract, selected adapter instrumentation, privacy sentinel cases, cancellation cleanup, and interrupt exit behavior exercised by those tests.
+At revision `8b1cb340cbfc962296dcdb87764986bb9ce8b9db`, the native build, 56 Python tests, first-party runtime type check, first-party lint/format check, documentation validation, five knowledge tests, and whitespace validation pass. A real-model Pipecat proof records STT, text, and TTS calls/timings with zero errors and zero mailbox drops; a separate 108-second live transport session emits ready, stopping, stopped, and terminal aggregate metrics and releases PortAudio cleanly.[^model-proof]
 
-It does not prove live microphone/speaker cleanup, external log-sink privacy, persistent metric export, signal behavior under every macOS process state, live model latency, or cancellation inside a non-yielding Metal kernel. A-009 remains open until the live transport is wired and exercised.
+This proves `A-009` for the implemented local process: fixed-schema privacy-safe events, aggregate model and queue metrics, live transport lifecycle, and normal/cancelled cleanup. It does not prove external log-sink privacy, persistent metric export, signal behavior under every macOS process state, cancellation inside a non-yielding Metal kernel, or telemetry from a successful human conversation.
 
 [^operations-implementation]: `python/simo/operations.py` and the instrumented Pipecat adapters at revision `e5a6f6a408c3d544884ff87502091f7977b7d84b`.
 [^runtime-implementation]: `python/simo/runtime.py` and `python/simo/cli.py` at revision `e5a6f6a408c3d544884ff87502091f7977b7d84b`.
 [^operations-tests]: `tests/python/test_operations.py`, `tests/python/test_cli.py`, `tests/python/test_inference.py`, and `tests/python/test_qwen_tts.py` at revision `e5a6f6a408c3d544884ff87502091f7977b7d84b`.
+[^model-proof]: `python/simo/model_proof.py`, `python/simo/runtime.py`, and `python/simo/operations.py` at revision `8b1cb340cbfc962296dcdb87764986bb9ce8b9db`; executed on the declared M3 Ultra on 2026-08-02 local time.
