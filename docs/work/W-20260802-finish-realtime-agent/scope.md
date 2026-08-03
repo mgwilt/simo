@@ -4,7 +4,7 @@ title: Finished Simo product scope
 description: Bounds the runnable realtime-agent product, external effects, and deferred production concerns.
 tags: [work, scope, product, realtime]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:08:12Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:51:56Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-SCOPE
@@ -38,4 +38,4 @@ simo:
 
 ## Authorization
 
-Repository-local source, tests, documentation, dependency locking, local dependency installation, recoverable generated fixtures, and regular conventional commits are authorized. Preserve `vendor/` pins unless a separate bounded dependency-update decision is recorded. Do not push, deploy, use credentials, download large model weights, clone voices, or synthesize a real person's voice without explicit user authorization. Small model/configuration metadata may be inspected; model weights require a separate explicit download checkpoint.
+Repository-local source, tests, documentation, dependency locking, local dependency installation, recoverable generated fixtures, and regular conventional commits are authorized. Preserve `vendor/` pins unless a separate bounded dependency-update decision is recorded. Do not push, deploy, use credentials, clone voices, or synthesize a real person's voice without explicit user authorization. The user explicitly authorized the selected large model downloads on 2026-08-02 local time; this authorization covers only the three immutable repositories declared by `scripts/setup_models.py` and does not expand any other external-effect boundary.
