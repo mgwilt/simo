@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from simo.context import (
+    ContextMemoryClaim,
     ContextParticipant,
     ConversationContextScope,
     DropPolicy,
@@ -62,6 +63,21 @@ class NativeContextTests(unittest.TestCase):
                 left.enqueue_transcript("unknown", "must fail closed")
             left.enqueue_transcript("right-remote", "visible only to left")
             right.enqueue_transcript("left-remote", "visible only to right")
+            left.begin_memory_refresh()
+            left.upsert_memory_claim(
+                ContextMemoryClaim(
+                    "claim-left",
+                    "right-remote",
+                    "preference.favorite:door",
+                    "preference",
+                    "Favorite door is green.",
+                    "source-conversation",
+                    "source-event",
+                    "2027-01-01",
+                    0.97,
+                )
+            )
+            memory_stats = left.commit_memory_refresh()
             left.tick()
             right.tick()
             left_snapshot = left.snapshot()
@@ -72,6 +88,8 @@ class NativeContextTests(unittest.TestCase):
         self.assertEqual("left-local", left_snapshot["local_participant_id"])
         self.assertEqual("lk-right", left_snapshot["participants"][1]["transport_participant_id"])
         self.assertEqual("visible only to left", left_snapshot["items"][0]["text"])
+        self.assertEqual(1, memory_stats.claims)
+        self.assertEqual("Favorite door is green.", left_snapshot["memories"][0]["content"])
         self.assertEqual("visible only to right", right_snapshot["items"][0]["text"])
         self.assertNotIn("visible only to right", str(left_snapshot))
         self.assertFalse(any("entity" in key or "handle" in key for key in left_snapshot))

@@ -11,7 +11,12 @@ from simo.adapters.pipecat.semantic_turn import (
     SemanticContextSnapshot,
     format_semantic_context,
 )
-from simo.context import ContextParticipant, ConversationContextScope, NativeContextEngine
+from simo.context import (
+    ContextMemoryClaim,
+    ContextParticipant,
+    ConversationContextScope,
+    NativeContextEngine,
+)
 
 
 class SemanticFormattingTests(unittest.TestCase):
@@ -28,6 +33,26 @@ class SemanticFormattingTests(unittest.TestCase):
             "Simo semantic context (revision 3):\n- [1] user: blue door",
             rendered,
         )
+        with_memory = replace(
+            snapshot,
+            memory_revision=1,
+            memories=(
+                ContextMemoryClaim(
+                    "claim-1",
+                    "user",
+                    "preference.favorite:door",
+                    "preference",
+                    "Favorite door is green.",
+                    "conversation-1",
+                    "event-1",
+                    "2027-01-01",
+                    0.97,
+                ),
+            ),
+        )
+        memory_rendered = format_semantic_context(with_memory, max_chars=200)
+        self.assertIn("[memory preference.favorite:door]", memory_rendered)
+        self.assertIn("Favorite door is green.", memory_rendered)
         stale = replace(
             snapshot,
             captured_monotonic_ns=time.monotonic_ns() - 2_000_000_000,

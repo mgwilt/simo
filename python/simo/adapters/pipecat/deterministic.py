@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -55,10 +56,7 @@ class DeterministicTextInference(FrameProcessor):
             try:
                 frame.context.require_fresh(self._max_context_age_ms)
                 self.turns.append(frame)
-                response = (
-                    f"Context revision {frame.context.revision} has "
-                    f"{len(frame.context.items)} item(s). You said: {frame.user_text}"
-                )
+                response = _deterministic_response(frame)
                 await self.push_frame(LLMFullResponseStartFrame(), direction)
                 await self.push_frame(LLMTextFrame(text=response), direction)
                 await self.push_frame(LLMFullResponseEndFrame(), direction)
@@ -117,6 +115,31 @@ class DeterministicTTS(FrameProcessor):
                 raise
             if metrics is not None and token is not None:
                 metrics.finish_stage(token)
+
+
+def _deterministic_response(frame: SemanticTurnFrame) -> str:
+    favorite = re.fullmatch(
+        r"\s*what is my favorite (?P<category>.+?)[?!.]*\s*",
+        frame.user_text,
+        re.IGNORECASE,
+    )
+    if favorite is not None:
+        category = re.sub(
+            r"[^a-z0-9]+",
+            "-",
+            favorite.group("category").casefold(),
+        ).strip("-")
+        claim_key = f"preference.favorite:{category}"
+        memory = next(
+            (item for item in frame.context.memories if item.claim_key == claim_key),
+            None,
+        )
+        if memory is not None:
+            return f"I remember: {memory.content}"
+    return (
+        f"Context revision {frame.context.revision} has "
+        f"{len(frame.context.items)} item(s). You said: {frame.user_text}"
+    )
 
 
 class FrameCollector(FrameProcessor):

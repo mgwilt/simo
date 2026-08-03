@@ -60,6 +60,26 @@ class KnowledgeRefreshStats:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryRefreshStats:
+    revision: int
+    claims: int
+    removed: int
+
+
+@dataclass(frozen=True, slots=True)
+class ContextMemoryClaim:
+    claim_id: str
+    subject_id: str
+    claim_key: str
+    claim_class: str
+    content: str
+    source_conversation_id: str
+    source_event_id: str
+    stale_after: str
+    confidence: float
+
+
+@dataclass(frozen=True, slots=True)
 class ContextParticipant:
     participant_id: str
     kind: str
@@ -149,6 +169,14 @@ class _NativeKnowledgeRefreshStats(ctypes.Structure):
     ]
 
 
+class _NativeMemoryRefreshStats(ctypes.Structure):
+    _fields_ = [
+        ("revision", ctypes.c_uint64),
+        ("claims", ctypes.c_size_t),
+        ("removed", ctypes.c_size_t),
+    ]
+
+
 def _library_names() -> tuple[str, ...]:
     if sys.platform == "darwin":
         return ("libsimo_core.dylib",)
@@ -216,6 +244,19 @@ def _configure_library(library: ctypes.CDLL) -> None:
         ctypes.c_char_p,
     ]
     library.simo_context_engine_upsert_participant.restype = ctypes.c_int
+    library.simo_context_engine_begin_memory_refresh.argtypes = [ctypes.c_void_p]
+    library.simo_context_engine_begin_memory_refresh.restype = ctypes.c_int
+    library.simo_context_engine_upsert_memory_claim.argtypes = [
+        ctypes.c_void_p,
+        *([ctypes.c_char_p] * 8),
+        ctypes.c_float,
+    ]
+    library.simo_context_engine_upsert_memory_claim.restype = ctypes.c_int
+    library.simo_context_engine_commit_memory_refresh.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(_NativeMemoryRefreshStats),
+    ]
+    library.simo_context_engine_commit_memory_refresh.restype = ctypes.c_int
     library.simo_context_engine_enqueue_transcript.argtypes = [
         ctypes.c_void_p,
         ctypes.c_char_p,
@@ -367,6 +408,50 @@ class NativeContextEngine:
             raise RuntimeError("native Simo context engine rejected participant identity")
         if self._participant_ids is not None:
             self._participant_ids.add(participant.participant_id)
+
+    def begin_memory_refresh(self) -> None:
+        result_value = cast(
+            object,
+            self._library.simo_context_engine_begin_memory_refresh(self._require_handle()),
+        )
+        if result_value != 0:
+            raise RuntimeError("failed to begin native memory refresh")
+
+    def upsert_memory_claim(self, claim: ContextMemoryClaim) -> None:
+        if self._participant_ids is not None and claim.subject_id not in self._participant_ids:
+            raise ValueError(f"memory subject is outside the context scope: {claim.subject_id}")
+        result_value = cast(
+            object,
+            self._library.simo_context_engine_upsert_memory_claim(
+                self._require_handle(),
+                claim.claim_id.encode("utf-8"),
+                claim.subject_id.encode("utf-8"),
+                claim.claim_key.encode("utf-8"),
+                claim.claim_class.encode("utf-8"),
+                claim.content.encode("utf-8"),
+                claim.source_conversation_id.encode("utf-8"),
+                claim.source_event_id.encode("utf-8"),
+                claim.stale_after.encode("utf-8"),
+                claim.confidence,
+            ),
+        )
+        if result_value != 0:
+            raise RuntimeError("failed to project native memory claim")
+
+    def commit_memory_refresh(self) -> MemoryRefreshStats:
+        native = _NativeMemoryRefreshStats()
+        result_value = cast(
+            object,
+            self._library.simo_context_engine_commit_memory_refresh(
+                self._require_handle(), ctypes.byref(native)
+            ),
+        )
+        if result_value != 0:
+            raise RuntimeError("failed to commit native memory refresh")
+        revision = int(native.revision)  # pyright: ignore[reportAny]
+        claims = int(native.claims)  # pyright: ignore[reportAny]
+        removed = int(native.removed)  # pyright: ignore[reportAny]
+        return MemoryRefreshStats(revision, claims, removed)
 
     def tick(self) -> int:
         return int(self._library.simo_context_engine_tick(self._require_handle()))

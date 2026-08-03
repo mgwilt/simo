@@ -49,12 +49,28 @@ struct ParticipantInput {
 
 struct ParticipantView : ParticipantInput {};
 
+struct MemoryClaimInput {
+    std::string claim_id;
+    std::string subject_id;
+    std::string claim_key;
+    std::string claim_class;
+    std::string content;
+    std::string source_conversation_id;
+    std::string source_event_id;
+    std::string stale_after;
+    float confidence{0.0F};
+};
+
+struct MemoryClaimView : MemoryClaimInput {};
+
 struct ContextSnapshot {
     std::uint64_t revision{0};
+    std::uint64_t memory_revision{0};
     std::string alias_id;
     std::string conversation_id;
     std::string local_participant_id;
     std::vector<ParticipantView> participants;
+    std::vector<MemoryClaimView> memories;
     std::vector<ContextItem> items;
 
     [[nodiscard]] std::string to_json() const;
@@ -67,6 +83,12 @@ struct EngineStats {
     std::uint64_t structural_observations{0};
     std::size_t queued{0};
     std::size_t retained{0};
+};
+
+struct MemoryRefreshStats {
+    std::uint64_t revision{0};
+    std::size_t claims{0};
+    std::size_t removed{0};
 };
 
 struct KnowledgeConceptInput {
@@ -120,6 +142,9 @@ public:
         std::string text,
         bool is_final = true);
     void upsert_participant(ParticipantInput input);
+    void begin_memory_refresh();
+    void upsert_memory_claim(MemoryClaimInput input);
+    [[nodiscard]] MemoryRefreshStats commit_memory_refresh();
     [[nodiscard]] std::size_t tick();
     [[nodiscard]] std::shared_ptr<const ContextSnapshot> snapshot() const;
     [[nodiscard]] EngineStats stats() const;

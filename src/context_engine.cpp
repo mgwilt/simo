@@ -35,6 +35,12 @@ struct ConversationIdentity {
 
 struct ParticipantIdentity : ParticipantInput {};
 
+struct MemoryClaimComponent : MemoryClaimInput {
+    std::uint64_t refresh_generation{0};
+};
+
+struct MemoryAboutParticipant {};
+
 struct PendingTranscript {
     std::uint64_t sequence;
     std::string speaker;
@@ -100,9 +106,11 @@ public:
           conversation(world.entity("simo.Conversation")),
           current_snapshot(std::make_shared<const ContextSnapshot>(ContextSnapshot{
               0U,
+              0U,
               config.alias_id,
               config.conversation_id,
               config.local_participant_id,
+              {},
               {},
               {},
           })),
@@ -122,6 +130,8 @@ public:
         world.component<ContextCandidate>();
         world.component<ConversationIdentity>();
         world.component<ParticipantIdentity>();
+        world.component<MemoryClaimComponent>();
+        world.component<MemoryAboutParticipant>();
         world.component<KnowledgeConceptComponent>();
         world.component<ReferencesKnowledge>();
         conversation.set<ConversationIdentity>({
@@ -159,6 +169,9 @@ public:
     mutable std::mutex snapshot_mutex;
     std::shared_ptr<const ContextSnapshot> current_snapshot;
     std::unordered_map<std::string, flecs::entity_t> participant_entities;
+    std::uint64_t memory_generation{0};
+    bool memory_refresh_active{false};
+    std::unordered_map<std::string, flecs::entity_t> memory_entities;
 
     std::uint64_t knowledge_generation{0};
     bool knowledge_refresh_active{false};
@@ -169,7 +182,8 @@ public:
 
 std::string ContextSnapshot::to_json() const {
     std::ostringstream output;
-    output << "{\"revision\":" << revision << ",\"alias_id\":\""
+    output << "{\"revision\":" << revision << ",\"memory_revision\":"
+           << memory_revision << ",\"alias_id\":\""
            << escape_json(alias_id) << "\",\"conversation_id\":\""
            << escape_json(conversation_id) << "\",\"local_participant_id\":\""
            << escape_json(local_participant_id) << "\",\"participants\":[";
@@ -184,6 +198,23 @@ std::string ContextSnapshot::to_json() const {
                << "\",\"display_name\":\"" << escape_json(participant.display_name)
                << "\",\"transport_participant_id\":\""
                << escape_json(participant.transport_participant_id) << "\"}";
+    }
+    output << "],\"memories\":[";
+    for (std::size_t index = 0; index < memories.size(); ++index) {
+        const auto& memory = memories[index];
+        if (index != 0U) {
+            output << ',';
+        }
+        output << "{\"claim_id\":\"" << escape_json(memory.claim_id)
+               << "\",\"subject_id\":\"" << escape_json(memory.subject_id)
+               << "\",\"claim_key\":\"" << escape_json(memory.claim_key)
+               << "\",\"claim_class\":\"" << escape_json(memory.claim_class)
+               << "\",\"content\":\"" << escape_json(memory.content)
+               << "\",\"source_conversation_id\":\""
+               << escape_json(memory.source_conversation_id)
+               << "\",\"source_event_id\":\"" << escape_json(memory.source_event_id)
+               << "\",\"stale_after\":\"" << escape_json(memory.stale_after)
+               << "\",\"confidence\":" << memory.confidence << '}';
     }
     output << "],\"items\":[";
     for (std::size_t index = 0; index < items.size(); ++index) {
@@ -293,12 +324,95 @@ void ContextEngine::upsert_participant(ParticipantInput input) {
     std::lock_guard snapshot_lock(impl_->snapshot_mutex);
     impl_->current_snapshot = std::make_shared<const ContextSnapshot>(ContextSnapshot{
         impl_->current_snapshot->revision,
+        impl_->current_snapshot->memory_revision,
         impl_->config.alias_id,
         impl_->config.conversation_id,
         impl_->config.local_participant_id,
         std::move(participants),
+        impl_->current_snapshot->memories,
         impl_->current_snapshot->items,
     });
+}
+
+void ContextEngine::begin_memory_refresh() {
+    std::lock_guard lock(impl_->world_mutex);
+    ++impl_->memory_generation;
+    impl_->memory_refresh_active = true;
+    for (const auto& [claim_id, entity_id] : impl_->memory_entities) {
+        static_cast<void>(claim_id);
+        impl_->world.entity(entity_id).remove<MemoryAboutParticipant>(flecs::Wildcard);
+    }
+}
+
+void ContextEngine::upsert_memory_claim(MemoryClaimInput input) {
+    if (input.claim_id.empty() || input.subject_id.empty() || input.claim_key.empty() ||
+        input.claim_class.empty() || input.content.empty() || input.confidence < 0.0F ||
+        input.confidence > 1.0F) {
+        throw std::invalid_argument("memory claim fields are invalid");
+    }
+    std::lock_guard lock(impl_->world_mutex);
+    if (!impl_->memory_refresh_active) {
+        throw std::logic_error("memory refresh is not active");
+    }
+    auto iterator = impl_->memory_entities.find(input.claim_id);
+    flecs::entity entity;
+    if (iterator == impl_->memory_entities.end()) {
+        entity = impl_->world.entity().child_of(impl_->conversation);
+        impl_->memory_entities.emplace(input.claim_id, entity.id());
+    } else {
+        entity = impl_->world.entity(iterator->second);
+    }
+    const auto subject = impl_->participant_entities.find(input.subject_id);
+    if (subject != impl_->participant_entities.end()) {
+        entity.add<MemoryAboutParticipant>(impl_->world.entity(subject->second));
+    }
+    MemoryClaimComponent component;
+    static_cast<MemoryClaimInput&>(component) = std::move(input);
+    component.refresh_generation = impl_->memory_generation;
+    entity.set<MemoryClaimComponent>(std::move(component));
+}
+
+MemoryRefreshStats ContextEngine::commit_memory_refresh() {
+    std::lock_guard world_lock(impl_->world_mutex);
+    if (!impl_->memory_refresh_active) {
+        throw std::logic_error("memory refresh is not active");
+    }
+    std::size_t removed = 0U;
+    for (auto iterator = impl_->memory_entities.begin(); iterator != impl_->memory_entities.end();) {
+        const auto entity = impl_->world.entity(iterator->second);
+        const auto* item = entity.try_get<MemoryClaimComponent>();
+        if (item == nullptr || item->refresh_generation != impl_->memory_generation) {
+            entity.destruct();
+            iterator = impl_->memory_entities.erase(iterator);
+            ++removed;
+        } else {
+            ++iterator;
+        }
+    }
+    std::vector<MemoryClaimView> memories;
+    memories.reserve(impl_->memory_entities.size());
+    for (const auto& [claim_id, entity_id] : impl_->memory_entities) {
+        static_cast<void>(claim_id);
+        const auto* item = impl_->world.entity(entity_id).try_get<MemoryClaimComponent>();
+        if (item != nullptr) {
+            memories.push_back({static_cast<const MemoryClaimInput&>(*item)});
+        }
+    }
+    std::ranges::sort(memories, {}, &MemoryClaimView::claim_id);
+    std::lock_guard snapshot_lock(impl_->snapshot_mutex);
+    const auto revision = impl_->current_snapshot->memory_revision + 1U;
+    impl_->current_snapshot = std::make_shared<const ContextSnapshot>(ContextSnapshot{
+        impl_->current_snapshot->revision,
+        revision,
+        impl_->config.alias_id,
+        impl_->config.conversation_id,
+        impl_->config.local_participant_id,
+        impl_->current_snapshot->participants,
+        std::move(memories),
+        impl_->current_snapshot->items,
+    });
+    impl_->memory_refresh_active = false;
+    return {revision, impl_->current_snapshot->memories.size(), removed};
 }
 
 std::size_t ContextEngine::tick() {
@@ -362,10 +476,12 @@ std::size_t ContextEngine::tick() {
     const auto next_revision = impl_->current_snapshot->revision + 1U;
     impl_->current_snapshot = std::make_shared<const ContextSnapshot>(ContextSnapshot{
         next_revision,
+        impl_->current_snapshot->memory_revision,
         impl_->config.alias_id,
         impl_->config.conversation_id,
         impl_->config.local_participant_id,
         impl_->current_snapshot->participants,
+        impl_->current_snapshot->memories,
         std::move(items),
     });
     return events.size();

@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import cast
 
+from simo.context import ContextMemoryClaim, MemoryRefreshStats, NativeContextEngine
 from simo.persistence import ConversationEvent, SimoStore
 
 MAX_LEARNED_VALUE_CHARS = 240
@@ -128,6 +129,34 @@ class SafeMemoryLearner:
             else LearningStatus.PROMOTED
         )
         return LearningDecision(status, "safe direct claim", claim.claim_id, claim.claim_class)
+
+
+def refresh_memory_graph(
+    engine: NativeContextEngine,
+    store: SimoStore,
+    owner_alias_id: str,
+    participant_ids: set[str],
+) -> MemoryRefreshStats:
+    """Replace the world's active relationship-memory projection."""
+
+    engine.begin_memory_refresh()
+    for claim in store.list_memory_claims(owner_alias_id, status="active"):
+        if claim.subject_id not in participant_ids:
+            continue
+        engine.upsert_memory_claim(
+            ContextMemoryClaim(
+                claim.claim_id,
+                claim.subject_id,
+                claim.claim_key,
+                claim.claim_class,
+                claim.content,
+                claim.source_conversation_id or "",
+                claim.source_event_id or "",
+                claim.stale_after or "",
+                claim.confidence,
+            )
+        )
+    return engine.commit_memory_refresh()
 
 
 def _extract_candidate(text: str) -> _Candidate | None:

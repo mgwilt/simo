@@ -21,21 +21,19 @@ class PersistedConversationTests(unittest.IsolatedAsyncioTestCase):
                 "My favorite door is blue." if index == 0 else f"Synthetic turn {index + 1}."
                 for index in range(20)
             ]
-            turns[15] = "Correction: my favorite door is now green."
+            turns[15] = "My favorite door is green."
 
             first = await runtime.run(alias.alias_id, turns)
             self.assertEqual(20, first.turns_written)
             self.assertEqual(40, len(first.transcript))
             self.assertEqual(40, first.world_revision)
             self.assertEqual("My favorite door is blue.", first.transcript[0].text)
-            self.assertEqual(
-                "Correction: my favorite door is now green.", first.transcript[30].text
-            )
+            self.assertEqual("My favorite door is green.", first.transcript[30].text)
 
             reopened_store = SimoStore(root)
             resumed = await PersistedConversationRuntime(reopened_store, config).run(
                 alias.alias_id,
-                ["Continue after restart."],
+                ["What is my favorite door?"],
                 conversation_id=first.conversation_id,
                 complete=True,
             )
@@ -43,6 +41,27 @@ class PersistedConversationTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(42, len(resumed.transcript))
             self.assertEqual(42, resumed.world_revision)
+            self.assertEqual("I remember: Favorite door is green.", resumed.transcript[-1].text)
+            self.assertEqual(
+                ["Favorite door is green."],
+                [
+                    claim.content
+                    for claim in reopened_store.list_memory_claims(
+                        alias.alias_id,
+                        status="active",
+                    )
+                ],
+            )
+            self.assertEqual(
+                ["Favorite door is blue."],
+                [
+                    claim.content
+                    for claim in reopened_store.list_memory_claims(
+                        alias.alias_id,
+                        status="superseded",
+                    )
+                ],
+            )
             self.assertEqual("completed", detail.conversation.status)
             self.assertEqual(
                 list(range(1, len(detail.events) + 1)), [e.sequence for e in detail.events]

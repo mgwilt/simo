@@ -14,7 +14,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from simo.context import ContextParticipant, NativeContextEngine
+from simo.context import ContextMemoryClaim, ContextParticipant, NativeContextEngine
 from simo.observation import BoundedTranscriptMailbox, FinalTranscriptObservationBridge
 
 
@@ -35,6 +35,8 @@ class SemanticContextSnapshot:
     conversation_id: str = "ephemeral:unscoped"
     local_participant_id: str = "alias:unscoped"
     participants: tuple[ContextParticipant, ...] = ()
+    memory_revision: int = 0
+    memories: tuple[ContextMemoryClaim, ...] = ()
     captured_monotonic_ns: int = field(default_factory=time.monotonic_ns)
 
     @classmethod
@@ -66,6 +68,33 @@ class SemanticContextSnapshot:
                     transport_participant_id=transport_id or None,
                 )
             )
+        memory_revision_value = typed_value.get("memory_revision")
+        if not isinstance(memory_revision_value, int):
+            raise TypeError("native semantic memory_revision must be an integer")
+        raw_memories = typed_value.get("memories")
+        if not isinstance(raw_memories, list):
+            raise TypeError("native semantic memories must be a list")
+        memories: list[ContextMemoryClaim] = []
+        for raw_memory in cast("list[object]", raw_memories):
+            if not isinstance(raw_memory, dict):
+                raise TypeError("native semantic memory must be an object")
+            memory = cast("dict[str, object]", raw_memory)
+            confidence = memory.get("confidence")
+            if not isinstance(confidence, int | float):
+                raise TypeError("native semantic memory confidence must be numeric")
+            memories.append(
+                ContextMemoryClaim(
+                    _native_string(memory, "claim_id"),
+                    _native_string(memory, "subject_id"),
+                    _native_string(memory, "claim_key"),
+                    _native_string(memory, "claim_class"),
+                    _native_string(memory, "content"),
+                    _native_string(memory, "source_conversation_id", allow_empty=True),
+                    _native_string(memory, "source_event_id", allow_empty=True),
+                    _native_string(memory, "stale_after", allow_empty=True),
+                    float(confidence),
+                )
+            )
         return cls(
             revision=int(value["revision"]),
             items=tuple(
@@ -82,6 +111,8 @@ class SemanticContextSnapshot:
             conversation_id=conversation_id,
             local_participant_id=local_participant_id,
             participants=tuple(participants),
+            memory_revision=memory_revision_value,
+            memories=tuple(memories),
         )
 
     def require_fresh(self, max_age_ms: int) -> None:
@@ -192,12 +223,20 @@ def format_semantic_context(
         return header[:max_chars]
     selected: list[str] = []
     used = len(header)
-    for item in reversed(snapshot.items):
-        line = f"- [{item.sequence}] {item.speaker}: {item.text}"
+    for memory in snapshot.memories:
+        line = f"- [memory {memory.claim_key}] {memory.subject_id}: {memory.content}"
         added = len(line) + 1
         if used + added > max_chars:
             break
         selected.append(line)
         used += added
-    selected.reverse()
+    recent: list[str] = []
+    for item in reversed(snapshot.items):
+        line = f"- [{item.sequence}] {item.speaker}: {item.text}"
+        added = len(line) + 1
+        if used + added > max_chars:
+            break
+        recent.append(line)
+        used += added
+    selected.extend(reversed(recent))
     return "\n".join((header, *selected))

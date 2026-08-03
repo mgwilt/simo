@@ -25,6 +25,12 @@ typedef struct simo_engine_stats {
     size_t retained;
 } simo_engine_stats;
 
+typedef struct simo_memory_refresh_stats {
+    uint64_t revision;
+    size_t claims;
+    size_t removed;
+} simo_memory_refresh_stats;
+
 typedef struct simo_knowledge_refresh_stats {
     uint64_t revision;
     size_t concepts;
@@ -52,6 +58,21 @@ SIMO_API int simo_context_engine_upsert_participant(
     const char* alias_id,
     const char* display_name,
     const char* transport_participant_id);
+SIMO_API int simo_context_engine_begin_memory_refresh(simo_context_engine* engine);
+SIMO_API int simo_context_engine_upsert_memory_claim(
+    simo_context_engine* engine,
+    const char* claim_id,
+    const char* subject_id,
+    const char* claim_key,
+    const char* claim_class,
+    const char* content,
+    const char* source_conversation_id,
+    const char* source_event_id,
+    const char* stale_after,
+    float confidence);
+SIMO_API int simo_context_engine_commit_memory_refresh(
+    simo_context_engine* engine,
+    simo_memory_refresh_stats* stats);
 
 /* Returns 1 when accepted, 0 when rejected by policy, and -1 for invalid input. */
 SIMO_API int simo_context_engine_enqueue_transcript(

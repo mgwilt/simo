@@ -86,6 +86,67 @@ int simo_context_engine_upsert_participant(
     }
 }
 
+int simo_context_engine_begin_memory_refresh(simo_context_engine* engine) {
+    if (engine == nullptr) {
+        return -1;
+    }
+    try {
+        engine->value.begin_memory_refresh();
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simo_context_engine_upsert_memory_claim(
+    simo_context_engine* engine,
+    const char* claim_id,
+    const char* subject_id,
+    const char* claim_key,
+    const char* claim_class,
+    const char* content,
+    const char* source_conversation_id,
+    const char* source_event_id,
+    const char* stale_after,
+    const float confidence) {
+    if (engine == nullptr || claim_id == nullptr || subject_id == nullptr || claim_key == nullptr ||
+        claim_class == nullptr || content == nullptr || source_conversation_id == nullptr ||
+        source_event_id == nullptr || stale_after == nullptr) {
+        return -1;
+    }
+    try {
+        engine->value.upsert_memory_claim({
+            claim_id,
+            subject_id,
+            claim_key,
+            claim_class,
+            content,
+            source_conversation_id,
+            source_event_id,
+            stale_after,
+            confidence,
+        });
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simo_context_engine_commit_memory_refresh(
+    simo_context_engine* engine,
+    simo_memory_refresh_stats* stats) {
+    if (engine == nullptr || stats == nullptr) {
+        return -1;
+    }
+    try {
+        const auto value = engine->value.commit_memory_refresh();
+        *stats = {value.revision, value.claims, value.removed};
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 int simo_context_engine_enqueue_transcript(
     simo_context_engine* engine,
     const char* speaker,

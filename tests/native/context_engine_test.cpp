@@ -121,6 +121,47 @@ void test_scoped_worlds_project_identity_without_cross_contamination() {
     assert(left_snapshot->to_json().find("entity_id") == std::string::npos);
 }
 
+void test_memory_claims_refresh_as_bounded_graph_values() {
+    simo::ContextEngine engine({
+        4U,
+        4U,
+        simo::DropPolicy::drop_oldest,
+        "alias-memory",
+        "conversation-memory",
+        "participant-memory",
+    });
+    engine.upsert_participant(
+        {"participant-memory", "alias", "alias-memory", "Memory", "transport-memory"});
+    engine.upsert_participant({"subject-memory", "human", "", "Subject", "transport-subject"});
+    engine.begin_memory_refresh();
+    engine.upsert_memory_claim({
+        "claim-memory",
+        "subject-memory",
+        "preference.favorite:door",
+        "preference",
+        "Favorite door is green.",
+        "source-conversation",
+        "source-event",
+        "2027-01-01",
+        0.97F,
+    });
+    const auto first = engine.commit_memory_refresh();
+    assert(first.revision == 1U);
+    assert(first.claims == 1U);
+    const auto snapshot = engine.snapshot();
+    assert(snapshot->memory_revision == 1U);
+    assert(snapshot->memories[0].subject_id == "subject-memory");
+    assert(snapshot->memories[0].content == "Favorite door is green.");
+    assert(snapshot->to_json().find("flecs") == std::string::npos);
+
+    engine.begin_memory_refresh();
+    const auto second = engine.commit_memory_refresh();
+    assert(second.revision == 2U);
+    assert(second.claims == 0U);
+    assert(second.removed == 1U);
+    assert(engine.snapshot()->memories.empty());
+}
+
 void test_c_api_json_contract() {
     std::unique_ptr<simo_context_engine, decltype(&simo_context_engine_destroy)> engine(
         simo_context_engine_create_scoped(
@@ -210,6 +251,7 @@ int main() {
     test_drop_newest_and_retention();
     test_snapshot_is_immutable_value();
     test_scoped_worlds_project_identity_without_cross_contamination();
+    test_memory_claims_refresh_as_bounded_graph_values();
     test_c_api_json_contract();
     test_incremental_knowledge_projection();
     return 0;

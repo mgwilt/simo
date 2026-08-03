@@ -66,7 +66,7 @@ Every persisted `(alias, conversation)` run creates a separate native Flecs worl
 
 This deterministic persisted path opens no audio device and loads no model. It proves ordered recording, review, export, restart reconstruction, and isolated scoped Flecs projections; live-model transcript wiring and WebRTC rooms remain later milestones in `W-20260802-conversational-identities`.
 
-Allow-listed first-person statements such as “My name is …”, “I like …”, “My favorite … is …”, “My goal is …”, and “I will …” are promoted into the speaking alias's private relationship memory. Each claim retains participant, conversation, event, confidence, freshness, correction, and lifecycle provenance in SQLite and a portable OKF concept. Corrections supersede prior claims without rewriting history. Credential, permission, policy, and unmatched classes fail closed and never enter alias knowledge.
+Allow-listed first-person statements such as “My name is …”, “I like …”, “My favorite … is …”, “My goal is …”, and “I will …” are promoted into the speaking alias's private relationship memory. Each claim retains participant, conversation, event, confidence, freshness, correction, and lifecycle provenance in SQLite and a portable OKF concept. Active claims relevant to current participants are projected into typed Flecs memory entities and `about participant` graph relations; inference receives their bounded value snapshots and can recall corrected facts after restart. Corrections supersede prior claims without rewriting history. Credential, permission, policy, and unmatched classes fail closed and never enter alias knowledge.
 
 ```sh
 uv run simo memory list --alias <alias-id> --status active --json
