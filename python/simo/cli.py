@@ -140,16 +140,19 @@ def build_parser() -> argparse.ArgumentParser:
     memory_forget.add_argument("--json", action="store_true", dest="as_json")
 
     talk = subcommands.add_parser(
-        "talk", help="run and persist synthetic turns through Pipecat and Flecs"
+        "talk", help="talk to a persisted alias through a local LiveKit room"
     )
     talk.add_argument("--alias", required=True, dest="alias_id")
     talk.add_argument("--conversation", dest="conversation_id")
     talk.add_argument(
         "--turn",
         action="append",
-        required=True,
-        help="synthetic final user turn; repeat for a multi-turn conversation",
+        default=[],
+        help="use a synthetic text turn instead of the headset; repeat for multiple turns",
     )
+    talk.add_argument("--human-name", default="Local user")
+    talk.add_argument("--server-binary", help="override the livekit-server executable")
+    talk.add_argument("--max-duration-s", type=float)
     talk.add_argument("--complete", action="store_true")
     talk.add_argument("--json", action="store_true", dest="as_json")
 
@@ -222,6 +225,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else (
                 RunMode.LIVE
                 if command in {"live", "calibrate-mic"}
+                or (command == "talk" and not _arg_str_list(args, "turn"))
                 else getattr(args, "mode", RunMode.HEADLESS)
             )
         )
@@ -256,15 +260,42 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _print_report(report, False)
                 return 1
             store = SimoStore(_arg_optional_path(args, "data_dir"))
-            result = asyncio.run(
-                PersistedConversationRuntime(store, config).run(
-                    _arg_str(args, "alias_id"),
-                    _arg_str_list(args, "turn"),
+            turns = _arg_str_list(args, "turn")
+            if turns:
+                result = asyncio.run(
+                    PersistedConversationRuntime(store, config).run(
+                        _arg_str(args, "alias_id"),
+                        turns,
+                        conversation_id=_arg_optional_str(args, "conversation_id"),
+                        complete=_arg_bool(args, "complete"),
+                    )
+                )
+                _print_structured(result.as_dict(), _arg_bool(args, "as_json"))
+                return 0
+            from simo.livekit_local_talk import LocalTalkDevices, run_local_talk
+
+            def ready(devices: LocalTalkDevices) -> None:
+                print(
+                    f"Simo is listening through {devices.microphone}; "
+                    f"playing through {devices.speaker}. Press Ctrl-C to stop.",
+                    file=sys.stderr,
+                )
+
+            live_result = asyncio.run(
+                run_local_talk(
+                    store,
+                    config,
+                    alias_id=_arg_str(args, "alias_id"),
                     conversation_id=_arg_optional_str(args, "conversation_id"),
-                    complete=_arg_bool(args, "complete"),
+                    human_name=_arg_str(args, "human_name"),
+                    server_binary=_arg_optional_str(args, "server_binary"),
+                    max_duration_s=_arg_optional_float(args, "max_duration_s"),
+                    ready=ready,
                 )
             )
-            _print_structured(result.as_dict(), _arg_bool(args, "as_json"))
+            if _arg_bool(args, "complete"):
+                store.complete_conversation(live_result.run.conversation_id)
+            _print_structured(live_result.as_dict(), _arg_bool(args, "as_json"))
             return 0
         if args.command == "live":
             report = inspect_runtime(config)
@@ -546,6 +577,15 @@ def _arg_float(args: argparse.Namespace, name: str) -> float:
     value = _arg_value(args, name)
     if not isinstance(value, int | float):
         raise TypeError(f"{name} must be numeric")
+    return float(value)
+
+
+def _arg_optional_float(args: argparse.Namespace, name: str) -> float | None:
+    value = _arg_value(args, name)
+    if value is None:
+        return None
+    if not isinstance(value, int | float):
+        raise TypeError(f"{name} must be numeric or null")
     return float(value)
 
 

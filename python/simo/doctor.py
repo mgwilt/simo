@@ -56,7 +56,7 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
         ),
         _core_check(config),
     ]
-    audio_module_check: Check | None = None
+    livekit_checks: list[Check] = []
     if requires_models:
         mlx_module_checks = [
             _module_check(name, module)
@@ -68,8 +68,11 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
         ]
         checks.extend(mlx_module_checks)
         if is_live:
-            audio_module_check = _module_check("PyAudio", "pyaudio")
-            checks.append(audio_module_check)
+            livekit_checks = [
+                _module_check("LiveKit Agents", "livekit.agents"),
+                _module_check("LiveKit Silero", "livekit.plugins.silero"),
+            ]
+            checks.extend(livekit_checks)
         checks.append(
             _mlx_metal_check()
             if all(check.ok for check in mlx_module_checks)
@@ -80,18 +83,19 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
                 "not tested until all MLX runtime modules are installed",
             )
         )
-        if is_live and audio_module_check is not None:
+        if is_live:
             checks.append(
                 _local_audio_device_check(config)
-                if audio_module_check.ok
+                if all(check.ok for check in livekit_checks)
                 else Check(
                     "local audio devices",
                     False,
                     True,
-                    "not tested until PyAudio is installed",
+                    "not tested until the LiveKit runtime is installed",
                 )
             )
-        checks.append(_nltk_data_check())
+        else:
+            checks.append(_nltk_data_check())
         checks.extend(
             _model_check(name, model)
             for name, model in (
@@ -174,33 +178,29 @@ def _nltk_data_check() -> Check:
 def _local_audio_device_check(config: RuntimeConfig) -> Check:
     script = """
 import json
-import pyaudio
 import sys
-p = pyaudio.PyAudio()
+from livekit import rtc
+
+p = rtc.PlatformAudio()
 try:
     input_index = int(sys.argv[1]) if sys.argv[1] else None
     output_index = int(sys.argv[2]) if sys.argv[2] else None
-    input_info = (
-        p.get_device_info_by_index(input_index)
-        if input_index is not None
-        else p.get_default_input_device_info()
+    inputs = p.recording_devices()
+    outputs = p.playout_devices()
+    input_info = next(
+        (device for device in inputs if device.index == input_index),
+        inputs[0] if input_index is None and inputs else None,
     )
-    output_info = (
-        p.get_device_info_by_index(output_index)
-        if output_index is not None
-        else p.get_default_output_device_info()
+    output_info = next(
+        (device for device in outputs if device.index == output_index),
+        outputs[0] if output_index is None and outputs else None,
     )
-    if int(input_info.get("maxInputChannels", 0)) < 1:
-        raise RuntimeError("selected input device has no input channels")
-    if int(output_info.get("maxOutputChannels", 0)) < 1:
-        raise RuntimeError("selected output device has no output channels")
-    value = {
-        "input": input_info.get("name", "unknown"),
-        "output": output_info.get("name", "unknown"),
-    }
+    if input_info is None or output_info is None:
+        raise RuntimeError("selected LiveKit audio device is unavailable")
+    value = {"input": input_info.name, "output": output_info.name}
     print(json.dumps(value))
 finally:
-    p.terminate()
+    p.close()
 """
     result = subprocess.run(
         [

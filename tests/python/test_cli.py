@@ -9,14 +9,73 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from simo.cli import main
 from simo.config import RunMode
 from simo.doctor import DoctorReport
+from simo.livekit_local_talk import LocalTalkDevices, LocalTalkResult
+from simo.livekit_runtime import LiveKitAliasRunResult
 
 
 class CliTests(unittest.TestCase):
+    def test_talk_without_synthetic_turn_uses_livekit_headset_room(self) -> None:
+        run = LiveKitAliasRunResult(
+            "alias-a",
+            "conversation-a",
+            "alias-transport",
+            "PA-alias",
+            "human-transport",
+            8,
+            4,
+            2,
+            4,
+            "participant_disconnected",
+            False,
+            {"accepted": 7, "dropped": 0, "processed": 7, "failed": 0, "queued": 0},
+        )
+        expected = LocalTalkResult(
+            "livekit-server version 1.13.5",
+            "simo-talk-room",
+            "PA-human",
+            LocalTalkDevices("Headset mic", "Headset speakers"),
+            run,
+        )
+        output = io.StringIO()
+        errors = io.StringIO()
+        report = DoctorReport(RunMode.LIVE, True, ())
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            redirect_stdout(output),
+            redirect_stderr(errors),
+            patch("simo.cli.inspect_runtime", return_value=report),
+            patch(
+                "simo.livekit_local_talk.run_local_talk",
+                new=AsyncMock(return_value=expected),
+            ) as talk,
+        ):
+            status = main(
+                [
+                    "--data-dir",
+                    temporary,
+                    "talk",
+                    "--alias",
+                    "alias-a",
+                    "--human-name",
+                    "Mike",
+                    "--json",
+                ]
+            )
+
+        payload = cast(dict[str, object], cast(object, json.loads(output.getvalue())))
+        self.assertEqual(0, status)
+        self.assertEqual("PA-human", payload["human_participant_sid"])
+        self.assertEqual(
+            "conversation-a", cast(dict[str, object], payload["run"])["conversation_id"]
+        )
+        self.assertEqual("Mike", talk.call_args.kwargs["human_name"])
+        self.assertEqual("", errors.getvalue())
+
     def test_memory_commands_inspect_correct_and_forget_claims(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             data_dir = Path(temporary) / "data"
