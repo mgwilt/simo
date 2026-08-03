@@ -4,7 +4,7 @@ title: Finish Simo execution
 description: Orders research, core integration, inference, knowledge, operations, and live acceptance milestones.
 tags: [work, execution, milestones]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:07:39Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:47:29Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-EXECUTION
@@ -24,5 +24,5 @@ simo:
 | T-005 | Implement selected open-source STT and text inference adapters | Partial A-006; live model proof pending | complete |
 | T-006 | Implement and harden the selected Mac-native TTS cancellation and interruption path | Partial A-004 and A-007; live proof pending | complete |
 | T-007 | Add observability, privacy defaults, shutdown, and operator documentation | Partial A-009 and A-010; live proof pending | complete |
-| T-008 | Prove live three-turn interruptible voice conversation on the declared Mac | A-007, A-008 | pending |
+| T-008 | Prove live three-turn interruptible voice conversation on the declared Mac | A-007, A-008 | blocked: explicit model-download authorization |
 | T-009 | Promote durable knowledge, independently verify, and close | A-010, A-011 | pending |

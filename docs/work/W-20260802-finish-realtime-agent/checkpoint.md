@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:47:29Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -26,5 +26,6 @@ simo:
 - Completed: `T-006` added lazy Qwen3-TTS generation through MLX-Audio, bounded cross-thread streaming, signed 16-bit mono PCM framing, Pipecat contextual audio frames, cooperative cancellation between generated chunks, and bounded error propagation at `f07a5e5`.
 - Completed: `T-007` added a pure fixed-schema privacy-safe JSONL stream, aggregate queue/world/stage metrics, inference timing including first generated TTS audio, normal/cancelled lifecycle reporting, cancellation cleanup tests, terminal-interrupt status, and the operator contract at `e5a6f6a`.
 - Progress: `T-008` now has the installed/locked PyAudio transport, typed device/VAD configuration, bounded utterance and interruption processor, complete local Pipecat pipeline owner, explicit PortAudio cleanup, checksum-pinned small-data setup, fake-inference worker lifecycle proof, and outside-sandbox device preflight at `7f390b1`. Revision `3be0e37` adds a plan-only-by-default model installer, immutable revisions, free-space checks, required-file validation, atomic completion markers, and doctor enforcement. Real models and audio acceptance remain pending.
-- Blocker: none.
+- Current audit: direct macOS live preflight passes the M3 Ultra, native core, MLX runtimes and Metal device, PyAudio, Arctis Nova Pro input/output, and Pipecat sentence data. The three pinned model repositories are absent, as intended before authorization.
+- Blocker: explicit authorization is required before downloading 7,403,765,096 bytes (6.90 GiB) of model weights into ignored `.models/` storage. This same boundary has persisted for three consecutive goal turns; no truthful real-model or live-audio acceptance can proceed without crossing it.
 - Next action: request the scope-required explicit checkpoint for approximately 6.90 GiB of model-weight downloads; then prove each model before opening the microphone and running the human acceptance session.
