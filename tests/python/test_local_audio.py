@@ -13,6 +13,7 @@ from pipecat.frames.frames import (
     CancelFrame,
     InputAudioRawFrame,
     InterruptionFrame,
+    OutputAudioRawFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
@@ -58,8 +59,10 @@ class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(frames[0], UserStartedSpeakingFrame)
         self.assertIsInstance(frames[1], InterruptionFrame)
         self.assertIsInstance(frames[2], UserStoppedSpeakingFrame)
-        self.assertIsInstance(frames[3], PCMUtteranceFrame)
-        utterance = frames[3]
+        self.assertIsInstance(frames[3], OutputAudioRawFrame)
+        self.assertEqual(24_000, frames[3].sample_rate)  # type: ignore[union-attr]
+        self.assertIsInstance(frames[4], PCMUtteranceFrame)
+        utterance = frames[4]
         self.assertEqual(16_000, utterance.sample_rate)  # type: ignore[union-attr]
         self.assertEqual(6 * 640, len(utterance.audio))  # type: ignore[union-attr]
         self.assertEqual(

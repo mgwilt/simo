@@ -12,6 +12,7 @@ from pipecat.frames.frames import (
     Frame,
     InputAudioRawFrame,
     InterruptionFrame,
+    OutputAudioRawFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
@@ -144,6 +145,7 @@ class EnergyUtteranceProcessor(FrameProcessor):
         audio = bytes(self._utterance)
         sample_rate = self._sample_rate
         await self.push_frame(UserStoppedSpeakingFrame(), direction)
+        await self.push_frame(_acknowledgement_tone(), direction)
         await self.push_frame(
             PCMUtteranceFrame(
                 audio=audio,
@@ -170,3 +172,14 @@ def _normalized_rms(audio: bytes) -> float:
     if samples.size == 0:
         return 0.0
     return float(np.sqrt(np.mean(np.square(samples / 32768.0))))
+
+
+def _acknowledgement_tone() -> OutputAudioRawFrame:
+    sample_rate = 24_000
+    positions = np.arange(round(sample_rate * 0.07), dtype=np.float32) / sample_rate
+    wave = np.sin(2 * np.pi * 1_040 * positions) * 0.12
+    return OutputAudioRawFrame(
+        audio=(wave * 32767).astype("<i2").tobytes(),
+        sample_rate=sample_rate,
+        num_channels=1,
+    )
