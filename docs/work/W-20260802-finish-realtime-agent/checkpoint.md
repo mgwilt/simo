@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:51:56Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -25,8 +25,8 @@ simo:
 - Completed: `T-005` installed the optional MLX runtime set, verified Metal/API availability outside the sandbox, and added lazy Parakeet streaming-session and MLX-LM text adapters plus Pipecat processors at `754265a`.
 - Completed: `T-006` added lazy Qwen3-TTS generation through MLX-Audio, bounded cross-thread streaming, signed 16-bit mono PCM framing, Pipecat contextual audio frames, cooperative cancellation between generated chunks, and bounded error propagation at `f07a5e5`.
 - Completed: `T-007` added a pure fixed-schema privacy-safe JSONL stream, aggregate queue/world/stage metrics, inference timing including first generated TTS audio, normal/cancelled lifecycle reporting, cancellation cleanup tests, terminal-interrupt status, and the operator contract at `e5a6f6a`.
-- Progress: `T-008` now has the installed/locked PyAudio transport, typed device/VAD configuration, bounded utterance and interruption processor, complete local Pipecat pipeline owner, explicit PortAudio cleanup, checksum-pinned small-data setup, fake-inference worker lifecycle proof, and outside-sandbox device preflight at `7f390b1`. Revision `3be0e37` adds a plan-only-by-default model installer, immutable revisions, free-space checks, required-file validation, atomic completion markers, and doctor enforcement. Real models and audio acceptance remain pending.
-- Current audit: direct macOS live preflight passes the M3 Ultra, native core, MLX runtimes and Metal device, PyAudio, Arctis Nova Pro input/output, and Pipecat sentence data. The three pinned model repositories are absent, as intended before authorization.
-- Resumed: the user explicitly authorized model downloads on 2026-08-02 local time. The 7,403,765,096-byte pinned transfer into ignored `.models/` storage is now within scope.
+- Progress: `T-008` has the installed/locked PyAudio transport, typed device/VAD configuration, bounded utterance and interruption processor, complete local Pipecat pipeline owner, explicit PortAudio cleanup, checksum-pinned small-data setup, fake-inference worker lifecycle proof, immutable model installer, and outside-sandbox device preflight at `7f390b1` and `3be0e37`.
+- Completed model gate: after authorization, all three pinned repositories downloaded with matching completion markers and live doctor became ready. Revisions `1760104`, `1ce3928`, and `ad49653` correct Qwen chat templating, add repeatable cold/warm proofs, and execute real Parakeet STT → Flecs context → Qwen text → Qwen TTS through Pipecat. `E-009` verifies `A-006` and `A-007`.
+- Live attempt: the process remained ready for 108 seconds and shut down cleanly with zero errors or drops, but no utterance crossed the configured energy gate. A subsequent three-second aggregate-only microphone sample found peak RMS `0.012764` against the configured `0.02` start threshold. No raw audio was stored or transcribed during that diagnostic.
 - Blocker: none.
-- Next action: run the guarded installer, verify the completion markers and doctor, then prove each model before opening the microphone and running the human acceptance session.
+- Next action: calibrate the available Arctis microphone threshold with a present speaker, then run the human three-turn context and interruption acceptance. Do not claim `A-008` from the no-utterance attempt.

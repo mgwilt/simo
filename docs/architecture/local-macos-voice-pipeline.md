@@ -4,8 +4,8 @@ title: Local macOS voice pipeline
 description: Defines Simo's implemented Pipecat local-audio topology, bounded utterance detection, interruption path, and resource lifecycle.
 tags: [architecture, macos, voice, pipecat, mlx, audio, interruption]
 status: stable
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
-verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
+verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
 sources:
   - id: pipecat-local-transport
     resource: ../../vendor/pipecat/src/pipecat/transports/local/audio.py
@@ -19,6 +19,9 @@ sources:
   - id: live-tests
     resource: ../../tests/python/test_live_runtime.py
     title: Simo live runtime tests
+  - id: model-proof
+    resource: ../../python/simo/model_proof.py
+    title: Simo executable real-model proof
   - id: nltk-data-index
     resource: https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/index.xml
     title: NLTK data package index
@@ -26,7 +29,7 @@ simo:
   profile_version: 1
   stable_id: DOC-0005
   authority: architecture
-  repository_paths: [pyproject.toml, uv.lock, python/simo/config.py, python/simo/doctor.py, python/simo/runtime.py, python/simo/adapters/pipecat, scripts/setup_live_data.py, scripts/setup_models.py, tests/python]
+  repository_paths: [pyproject.toml, uv.lock, python/simo/config.py, python/simo/doctor.py, python/simo/runtime.py, python/simo/model_proof.py, python/simo/adapters/pipecat, scripts/setup_live_data.py, scripts/setup_models.py, tests/python]
   owner: unassigned
 ---
 # Local macOS voice pipeline
@@ -66,12 +69,13 @@ The live command builds the complete pipeline only after preflight succeeds. Pip
 
 ## Evidence boundary
 
-Implementation revision `7f390b1325c48f7161294ef5a001b523e7b9428f` passes the native build, 47 Python tests, documentation and knowledge validation, changed-file Ruff lint/format checks, and whitespace validation. Outside the sandbox on the declared M3 Ultra, live preflight proves MLX Metal, PyAudio, default Arctis Nova Pro input/output, and the checksum-pinned tokenizer are available. The only failed preflight checks are the three intentionally absent model directories.
+At revision `ad49653`, all three immutable model markers pass live doctor on the declared M3 Ultra. The executable model proof runs Qwen text, Qwen TTS, and Parakeet STT on MLX Metal; requires an exact synthetic text response and exact speech round trip; then drives the same real providers through one Pipecat worker, one Flecs context injection, and the validated OKF projection.[^model-proof]
 
-This proves pipeline construction, real Pipecat worker setup/teardown with fake inference, frame ordering, bounded utterance behavior, interruption-frame emission, configured device selection, PortAudio resource release, and truthful device/runtime preflight. It does not prove microphone capture, model execution, transcription quality, generated speech, audible playback, acoustic behavior, measured realtime latency, or human barge-in.
+The recorded run produced a 200 ms warm text response, 97 ms warm TTS first chunk, 97 ms warm transcription for 1.68 seconds of speech, one world revision, 32 projected knowledge concepts, 3 documentation links represented as runtime graph relations, 10 TTS audio frames, zero model errors, and zero mailbox drops. The generated 24 kHz PCM also played once through default PortAudio output. This proves model execution, one synthetic semantic turn, actual synthesis, and speaker write on this Mac. It does not prove human microphone speech, voice quality judgment, acoustic behavior, human barge-in, three-turn conversation, or production latency distribution.
 
 [^pipecat-local-transport]: `vendor/pipecat/src/pipecat/transports/local/audio.py` and `vendor/pipecat/pyproject.toml` at pinned Pipecat revision `b114a367a32166207712e8a9c352215a6e24a0db`.
 [^live-runtime]: `python/simo/runtime.py`, `python/simo/doctor.py`, and `python/simo/config.py` at revision `7f390b1325c48f7161294ef5a001b523e7b9428f`.
 [^local-audio-boundary]: `python/simo/adapters/pipecat/local_audio.py` at revision `7f390b1325c48f7161294ef5a001b523e7b9428f`.
 [^live-tests]: `tests/python/test_live_runtime.py`, `tests/python/test_local_audio.py`, `tests/python/test_doctor.py`, and `tests/python/test_setup_live_data.py` at revision `7f390b1325c48f7161294ef5a001b523e7b9428f`.
+[^model-proof]: `python/simo/model_proof.py` and `tests/python/test_model_proof.py` at revision `ad496532238add16d357e4d07f2d48dd1792d7b5`; executed on the declared M3 Ultra on 2026-08-02 local time.
 [^nltk-data-index]: NLTK data package index, checked 2026-08-02: `punkt_tab` archive URL, SHA-256, compressed size, and uncompressed size.

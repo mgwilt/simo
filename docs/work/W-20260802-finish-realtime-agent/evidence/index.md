@@ -8,3 +8,4 @@
 - [E-006 — runtime operations](E-006-runtime-operations.md)
 - [E-007 — local macOS live pipeline](E-007-local-macos-live-pipeline.md)
 - [E-008 — model download checkpoint](E-008-model-download-checkpoint.md)
+- [E-009 — real MLX model pipeline](E-009-real-mlx-model-pipeline.md)
