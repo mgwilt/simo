@@ -16,8 +16,8 @@ simo:
 # Acceptance
 
 - [x] **A-001 — Alias persistence:** Stable aliases, persona versions, runtime profiles, active pointers, and private OKF roots survive restart and support lossless export/import. Proven by `E-001` at `c668277`.
-- [ ] **A-002 — Conversation history:** An indexed local store persists ordered participant-attributed events, final user text, generated/submitted/spoken assistant stages, interruption state, timing, and version references.
-- [ ] **A-003 — Structured CLI:** Alias and conversation create/list/show/export/delete/resume commands have human-readable and JSON contracts with deterministic tests.
+- [x] **A-002 — Conversation history:** An indexed local store persists ordered participant-attributed events, final user text, generated/submitted/spoken assistant stages, interruption state, timing, and version references. Proven by `E-002` at `59a0c4e`.
+- [x] **A-003 — Structured CLI:** Alias and conversation create/list/show/export/delete/resume commands have human-readable and JSON contracts with deterministic tests. Proven by `E-001` and `E-002` at `c668277` and `59a0c4e`.
 - [ ] **A-004 — Twenty-turn continuity:** Synthetic acceptance resumes a persisted twenty-turn conversation after restart and recalls both an early fact and a later correction without cross-conversation contamination.
 - [ ] **A-005 — Live semantic isolation:** Each active alias/conversation owns an isolated Flecs projection; bounded snapshots expose stable participant and conversation identity without storage or entity handles crossing the Pipecat boundary.
 - [ ] **A-006 — Safe relationship learning:** Low-risk direct claims auto-promote with provenance and freshness; corrections supersede without erasing history; prohibited classes and permission changes fail closed; inspect/correct/forget survive restart.
