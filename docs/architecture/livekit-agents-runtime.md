@@ -1,11 +1,11 @@
 ---
-type: Architecture Proposal
+type: Architecture Concept
 title: LiveKit Agents runtime
-description: Defines Simo's accepted target for one self-hosted realtime orchestrator and the evidence-gated migration from Pipecat.
+description: Defines Simo's implemented LiveKit Agents orchestration plane and the remaining evidence-gated removal of Pipecat.
 tags: [architecture, livekit, agents, voice, flecs, migration]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
-verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T16:17:35Z }
+verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T16:17:35Z }
 stale_after: 2026-09-03
 sources:
   - id: livekit-pipelines
@@ -20,10 +20,19 @@ sources:
   - id: livekit-room-io
     resource: https://github.com/livekit/agents/blob/main/livekit-agents/livekit/agents/voice/room_io/room_io.py
     title: LiveKit Agents RoomIO implementation
+  - id: simo-livekit-runtime
+    resource: ../../python/simo/livekit_runtime.py
+    title: Persisted Simo LiveKit Agents runtime
+  - id: simo-livekit-talk
+    resource: ../../python/simo/livekit_local_talk.py
+    title: Simo native LiveKit headset participant
+  - id: simo-livekit-lab
+    resource: ../../python/simo/livekit_agent_lab.py
+    title: Simo two-process LiveKit Agents conversation lab
 simo:
   profile_version: 1
   stable_id: DOC-0006
-  authority: proposal
+  authority: architecture
   repository_paths: [pyproject.toml, uv.lock, python/simo, tests/python, docs]
   owner: codex/gpt-5.6-sol
 ---
@@ -31,9 +40,11 @@ simo:
 
 ## Decision and current truth
 
-Simo will use self-hosted LiveKit Server plus a local LiveKit Agents worker as its sole realtime orchestration plane. LiveKit Agents supports cascaded STT-LLM-TTS, realtime speech-to-speech, and half-cascade pipelines; Simo initially retains the cascaded local-model path because it exposes the clearest attribution, transcript, context, and evaluation boundaries.[^livekit-pipelines]
+Simo uses self-hosted LiveKit Server plus local LiveKit Agents sessions as its realtime orchestration plane. LiveKit Agents supports cascaded STT-LLM-TTS, realtime speech-to-speech, and half-cascade pipelines; Simo currently uses the cascaded local-model path because it exposes the clearest attribution, transcript, context, and evaluation boundaries.[^livekit-pipelines]
 
-This concept is an accepted target, not yet implemented authority. The current repository still executes Pipecat pipelines and the first two-process LiveKit proof used a Simo-owned Pipecat transport. Migration work is tracked by `W-20260802-conversational-identities`; this concept becomes stable architecture only after replacement tests, a full live-room model loop, and Pipecat removal.
+The implemented path now adapts local Parakeet STT, MLX text generation, Qwen TTS, Silero VAD, Flecs snapshots, and persisted session events directly to LiveKit Agents. `simo talk --alias …` starts one alias plus a native LiveKit `PlatformAudio` headset participant; `simo lab converse` starts two aliases as separate OS processes and permits communication only through room audio.[^simo-livekit-runtime][^simo-livekit-talk][^simo-livekit-lab]
+
+Pipecat remains in the repository only as a predecessor implementation and deterministic migration fallback. It is not part of the interactive `simo talk` or two-alias `simo lab converse` path. This concept remains draft until Pipecat code, dependency, tests, submodule, and obsolete current-tense claims are removed without reducing coverage.
 
 ## Ownership
 
@@ -68,9 +79,11 @@ remote participant audio
 
 Each active `(alias, conversation)` owns its `AgentSession`, Flecs world, participant mapping, and bounded event sink. Aliases never receive another alias's files, database handles, Flecs world, hidden scenario state, or generated transcripts. A two-alias lab joins two independent workers to one room and communicates only through remote audio.
 
+For local human conversation, a second RTC participant uses LiveKit's native platform audio device module. WebRTC echo cancellation, noise suppression, and automatic gain control are enabled; the human publishes only a microphone-source track and subscribes only to the declared alias identity. The local server and both participants receive fresh room-scoped identities for each invocation.[^simo-livekit-talk]
+
 ## Migration and removal gate
 
-Pipecat remains temporarily as a working predecessor while LiveKit Agents adapters are implemented. Removal requires:
+The first four removal gates now have replacement evidence at `6499101` and `fac700e`. Final removal still requires:
 
 1. deterministic provider and session-event tests for local STT, text, TTS, Flecs injection, transcript stages, cancellation, and shutdown;
 2. an observed self-hosted two-process run through TTS, WebRTC, Silero, STT, Flecs, and the next response;
@@ -78,9 +91,12 @@ Pipecat remains temporarily as a working predecessor while LiveKit Agents adapte
 4. replacement documentation and operations evidence;
 5. deletion of the Pipecat dependency, adapter tree, tests that only attest Pipecat, current ownership claims, and the vendored submodule without reducing native, persistence, privacy, or model coverage.
 
-The earlier Pipecat/LiveKit run is historical transport evidence, not proof that the target pipeline works. Documentation validation alone cannot satisfy any removal gate.
+The observed LiveKit Agents two-process run now replaces the earlier Pipecat/LiveKit run for target-pipeline evidence. The earlier record remains historical transport evidence. Documentation validation alone cannot satisfy the remaining removal gate.
 
 [^livekit-pipelines]: LiveKit Agents voice pipeline types, verified 2026-08-03.
 [^livekit-nodes]: LiveKit Agents pipeline nodes and hooks, verified 2026-08-03.
 [^livekit-turns]: LiveKit Agents turn handling and tuning, verified 2026-08-03.
 [^livekit-room-io]: LiveKit Agents `RoomIO` source on the mutable `main` branch, inspected 2026-08-03; refresh by `stale_after` before relying on API details.
+[^simo-livekit-runtime]: `python/simo/livekit_runtime.py`, `python/simo/adapters/livekit`, and focused tests at revisions `24a7420` through `6499101`.
+[^simo-livekit-talk]: `python/simo/livekit_local_talk.py`, `python/simo/livekit_local_server.py`, `python/simo/cli.py`, `python/simo/doctor.py`, and focused tests at revision `fac700e`.
+[^simo-livekit-lab]: `python/simo/livekit_agent_lab.py` and `tests/python/test_livekit_agent_lab.py` at revision `6499101`; observed room evidence is recorded in `W-20260802-conversational-identities#E-006`.

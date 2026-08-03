@@ -1,12 +1,12 @@
 # Simo
 
-Simo is a macOS-first, open-source realtime voice-agent system. Pipecat owns the latency-sensitive media and inference pipeline, Flecs owns bounded live semantic state, and the repository's OKF 0.2 bundle owns durable reviewable knowledge.
+Simo is a macOS-first, open-source realtime voice-agent system. LiveKit Agents owns realtime room I/O, turn handling, and local model scheduling; Flecs owns bounded live semantic state; and the repository's OKF 0.2 bundle owns durable reviewable knowledge. Pipecat remains temporarily only as a predecessor path while its replacement coverage is completed.
 
 The currently selected local inference defaults are Qwen3-TTS 0.6B CustomVoice 6-bit through MLX-Audio, Parakeet TDT 0.6B v3 through Parakeet MLX, and Qwen3.5 4B 4-bit through MLX-LM. Those providers remain replaceable. Model weights are not downloaded by setup.
 
 ## Headless quick start
 
-Requirements: Apple Command Line Tools or Xcode, Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and PortAudio (`brew install portaudio`) for live microphone/speaker mode.
+Requirements: Apple Command Line Tools or Xcode, Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and LiveKit Server (`brew install livekit`) for room-backed voice mode.
 
 ```sh
 git submodule update --init --recursive
@@ -38,6 +38,15 @@ Each alias has a stable UUID, immutable persona/runtime-profile versions, a huma
 uv run simo alias export <alias-id> ./ada.simo-alias
 uv run simo --data-dir /tmp/another-simo alias import ./ada.simo-alias
 ```
+
+Talk to one alias through a fresh loopback-only LiveKit room and the system-default headset:
+
+```sh
+uv run simo doctor --mode live
+uv run simo talk --alias <alias-id> --human-name Mike
+```
+
+The ready line names the active microphone and speaker. Press `Ctrl-C` once to stop; the final result includes the persisted conversation ID for `simo conversation show` or `export`. Use `--conversation <conversation-id>` to resume.
 
 Conversation identity and participant membership are indexed in the same local SQLite store:
 
@@ -84,7 +93,7 @@ uv run simo doctor --json
 uv run simo doctor --mode live
 ```
 
-Headless preflight requires only the native core. Live preflight additionally checks Apple Silicon, the three MLX Python runtimes, local model directories, and Pipecat's NLTK sentence data. Missing live prerequisites are reported without importing model runtimes or loading weights.
+Headless preflight requires only the native core. Live preflight additionally checks Apple Silicon, the three MLX Python runtimes, LiveKit Agents, the LiveKit Silero plugin, native PlatformAudio input/output, and local model directories. Missing live prerequisites are reported without loading model weights.
 
 Install the optional Apple Silicon inference runtimes before live preflight. This installs code and native libraries, not model weights:
 
@@ -94,7 +103,7 @@ uv run python scripts/setup_live_data.py
 uv run --extra inference simo doctor --mode live
 ```
 
-The live-data setup downloads only NLTK's checksum-pinned 4.3 MB `punkt_tab` tokenizer into ignored `.cache/` storage. Live preflight also verifies MLX Metal and the selected/default PortAudio input and output devices. It remains not ready until all three model repositories exist under `.models/`.
+The legacy model proof still uses NLTK's checksum-pinned `punkt_tab` tokenizer while Pipecat removal is in progress. Live preflight verifies MLX Metal and the selected/default LiveKit PlatformAudio input and output devices. It remains not ready until all three model repositories exist under `.models/`.
 
 Preview the pinned model plan without downloading anything:
 
@@ -116,7 +125,7 @@ After the model-download checkpoint, run the unattended model/VAD proof. It requ
 uv run simo doctor --mode models
 uv run simo prove-models
 uv run simo doctor --mode live
-uv run simo live
+uv run simo talk --alias <alias-id>
 ```
 
 `prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; proves one conditioned Silero utterance; replays the generated speech as simulated speaker echo and requires zero extra turns; and then executes real STT → Flecs context injection → real text → real TTS through Pipecat. It writes only an ignored synthetic `.artifacts/model-proof/tts.wav` and does not open the microphone or speaker.
@@ -129,7 +138,7 @@ uv run simo calibrate-mic
 
 Wait quietly until you hear one tone, then speak normally until you hear two tones. Simo measures the ambient phase, detects speech onset, and ends the speaking phase itself, so no visual timing or interaction is required. The command retains only aggregate RMS values, never audio or transcripts. Live mode uses Silero neural VAD rather than this RMS recommendation.
 
-The live pipeline is local microphone → bounded Silero utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, Silero, and the native Flecs owner.
+The interactive pipeline is native LiveKit PlatformAudio microphone → WebRTC room → LiveKit Agents Silero/turn handling → Parakeet STT → Flecs context/OKF projection → Qwen text inference → Qwen TTS → WebRTC room → native headset playout. `Control-C` disconnects both room participants, closes the LiveKit session and local server, and releases native audio/Flecs ownership.
 
 Environment overrides are parsed once into an immutable configuration:
 
@@ -143,7 +152,7 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_MAX_SEGMENTS` | `64` |
 | `SIMO_CONTEXT_MAX_CHARS` | `8000` |
 | `SIMO_CONTEXT_MAX_AGE_MS` | `1000` |
-| `SIMO_TEXT_MAX_TOKENS` | `48` |
+| `SIMO_TEXT_MAX_TOKENS` | `64` |
 | `SIMO_AUDIO_INPUT_DEVICE_INDEX` | system default |
 | `SIMO_AUDIO_OUTPUT_DEVICE_INDEX` | system default |
 | `SIMO_VAD_CONFIDENCE` | `0.10` |

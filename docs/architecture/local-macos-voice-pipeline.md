@@ -1,10 +1,10 @@
 ---
 type: Architecture Concept
-title: Local macOS voice pipeline
-description: Defines Simo's implemented Pipecat local-audio topology, bounded utterance detection, interruption path, and resource lifecycle.
+title: Predecessor local macOS voice pipeline
+description: Preserves the implemented Pipecat local-audio baseline that preceded Simo's LiveKit Agents headset runtime.
 tags: [architecture, macos, voice, pipecat, mlx, audio, interruption]
 status: stable
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T16:17:35Z }
 verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
 sources:
   - id: pipecat-local-transport
@@ -33,6 +33,8 @@ simo:
   owner: unassigned
 ---
 # Local macOS voice pipeline
+
+> Historical boundary: this concept describes the still-present predecessor Pipecat path. The current interactive command is the [LiveKit Agents runtime](livekit-agents-runtime.md), and Pipecat removal is active work under `W-20260802-conversational-identities`.
 
 ## Implemented topology
 

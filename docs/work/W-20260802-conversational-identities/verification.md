@@ -4,7 +4,7 @@ title: Conversational identities verification
 description: Records proportional checks for alias persistence, conversation behavior, learning, WebRTC rooms, and autonomous improvement.
 tags: [work, verification, aliases, conversation, livekit]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T16:17:35Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-VERIFICATION
@@ -23,7 +23,9 @@ simo:
 
 `E-004` verifies `A-004`, `A-006`, and `A-007` at `ed89281` and `60ff5d0`: private learning, correction, provenance, OKF materialization, Flecs recall, restart continuity, forgetting, and conversation-derived deletion execute without changing permission or persona authority.
 
-`E-005` partially supports `A-008` at `00033bd` and `5cc44b9`: two distinct processes join one self-hosted LiveKit room, publish synthetic PCM through the former Pipecat adapter, subscribe only to one allow-listed remote audio identity, preserve remote SIDs, exchange audio in both directions, retain no raw audio, and report zero self-echo or unexpected-identity frames. It is a migration baseline, not current target-architecture evidence. `A-008` and `A-015` remain open until the equivalent LiveKit Agents model loop executes and Pipecat is removed.
+`E-005` historically supported the transport portion of `A-008` at `00033bd` and `5cc44b9` through the former Pipecat adapter. It remains a migration baseline, not current target-architecture evidence; `E-006` supplies the replacement loop.
+
+`E-006` verifies `A-008` at `6499101`: two distinct Simo processes with private stores and personas joined one self-hosted room, ran local Qwen TTS through WebRTC, remote-only audio subscription, Silero, Parakeet, Flecs context, and local Qwen text generation, and persisted attributed review transcripts with no identity, self-echo, duplicate, incomplete-generation, or raw-audio failures. The local headset startup slice at `fac700e` additionally verifies native PlatformAudio device selection and a distinct human participant, but does not claim human conversational quality.
 
 The predecessor separately proves one process-local in-memory voice session, conditioned Silero, echo suppression, real local inference, and strict regression gates. Evidence composition does not substitute for executing the entire WebRTC model loop in one run.
 
