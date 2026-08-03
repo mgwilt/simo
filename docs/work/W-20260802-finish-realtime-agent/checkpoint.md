@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:47:24Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:55:40Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -23,6 +23,7 @@ simo:
 - Completed: `T-003` added the causal observer mailbox, ordered Flecs promotion, immutable revisioned context frames, bounded formatting/freshness, deterministic text and PCM TTS providers, and a real Pipecat pipeline at `6ea58b9`.
 - Completed: `T-004` added validation-before-mutation, two-pass concept/link loading, typed Flecs `references` pairs, provenance/freshness components, private runtime identities, immutable graph snapshots, and incremental removal at `0a2b290`.
 - Completed: `T-005` installed the optional MLX runtime set, verified Metal/API availability outside the sandbox, and added lazy Parakeet streaming-session and MLX-LM text adapters plus Pipecat processors at `754265a`.
-- Active: `T-006` Qwen3-TTS through MLX-Audio with PCM framing, cancellation, and interruption.
+- Completed: `T-006` added lazy Qwen3-TTS generation through MLX-Audio, bounded cross-thread streaming, signed 16-bit mono PCM framing, Pipecat contextual audio frames, cooperative cancellation between generated chunks, and bounded error propagation at `f07a5e5`.
+- Pending: `T-007` observability, privacy defaults, shutdown, and operator documentation.
 - Blocker: none.
-- Next action: inspect the installed MLX-Audio Qwen3 streaming result contract and implement it behind the replaceable TTS boundary with fake-backend cancellation tests.
+- Next action: request the scope-required explicit checkpoint for model-weight downloads before executing real local inference; live TTS, latency, audio I/O, and Metal-kernel preemption remain unproved.
