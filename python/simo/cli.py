@@ -55,6 +55,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path(".artifacts/model-proof"),
         help="ignored directory for the synthetic TTS WAV",
     )
+    calibration = subcommands.add_parser(
+        "calibrate-mic",
+        help="recommend a speech threshold from aggregate microphone levels",
+    )
+    calibration.add_argument("--ambient-seconds", type=float, default=2.0)
+    calibration.add_argument("--speech-seconds", type=float, default=3.0)
     return parser
 
 
@@ -63,7 +69,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         requested_mode = (
             RunMode.LIVE
-            if args.command in {"live", "prove-models"}
+            if args.command in {"live", "prove-models", "calibrate-mic"}
             else getattr(args, "mode", RunMode.HEADLESS)
         )
         config = RuntimeConfig.from_environment(mode=requested_mode)
@@ -113,6 +119,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = asyncio.run(prove_models(config, args.artifacts_dir))
             print(json.dumps(result))
             return 0
+        if args.command == "calibrate-mic":
+            from simo.audio_diagnostics import calibration_result, capture_rms_blocks
+
+            print(
+                f"Remain quiet for {args.ambient_seconds:g} seconds...",
+                file=sys.stderr,
+            )
+            ambient = capture_rms_blocks(
+                args.ambient_seconds,
+                device_index=config.audio_input_device_index,
+            )
+            print(
+                f"Speak continuously for {args.speech_seconds:g} seconds...",
+                file=sys.stderr,
+            )
+            speech = capture_rms_blocks(
+                args.speech_seconds,
+                device_index=config.audio_input_device_index,
+            )
+            result = calibration_result(
+                ambient,
+                speech,
+                configured_start_rms=config.vad_start_rms,
+            )
+            print(json.dumps(result))
+            return 0 if result["ready"] else 1
     except KeyboardInterrupt:
         print("simo: interrupted", file=sys.stderr)
         return 130

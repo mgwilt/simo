@@ -61,6 +61,14 @@ uv run simo live
 
 `prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; and then executes real STT → Flecs context injection → real text → real TTS through Pipecat. It writes only an ignored synthetic `.artifacts/model-proof/tts.wav` and does not open the microphone or speaker.
 
+If live mode does not detect a quiet headset microphone, calibrate it before changing the typed threshold:
+
+```sh
+uv run simo calibrate-mic
+```
+
+Remain quiet during the first prompt and speak continuously during the second. The command retains only aggregate RMS values, never audio or transcripts. It prints a `SIMO_VAD_START_RMS=...` recommendation only when speech is clearly separated from ambient sound; otherwise it fails closed and asks you to check mute and retry.
+
 The live pipeline is local microphone → bounded energy utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, and the native Flecs owner.
 
 Environment overrides are parsed once into an immutable configuration:
