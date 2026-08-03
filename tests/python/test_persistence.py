@@ -251,6 +251,39 @@ class PersistenceTests(unittest.TestCase):
             exported_transcript = cast(list[object], exported["transcript"])
             self.assertEqual(2, len(exported_transcript))
 
+    def test_participant_transport_binding_is_one_way_and_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = SimoStore(temporary)
+            alias = store.create_alias("Ada")
+            detail = store.create_conversation(alias.alias_id)
+            participant = detail.participants[0]
+
+            bound = store.bind_participant_transport(
+                detail.conversation.conversation_id,
+                participant.participant_id,
+                "lk-ada",
+            )
+            repeated = store.bind_participant_transport(
+                detail.conversation.conversation_id,
+                participant.participant_id,
+                "lk-ada",
+            )
+
+            self.assertEqual("lk-ada", bound.transport_participant_id)
+            self.assertEqual(bound, repeated)
+            self.assertEqual(
+                "lk-ada",
+                store.get_conversation(detail.conversation.conversation_id)
+                .participants[0]
+                .transport_participant_id,
+            )
+            with self.assertRaises(RecordConflictError):
+                store.bind_participant_transport(
+                    detail.conversation.conversation_id,
+                    participant.participant_id,
+                    "lk-other",
+                )
+
     def test_import_rejects_path_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -661,6 +661,61 @@ class SimoStore:  # noqa: PLR0904 - one transactional facade owns the local data
             connection.commit()
         return participant
 
+    def bind_participant_transport(
+        self,
+        conversation_id: str,
+        participant_id: str,
+        transport_participant_id: str,
+    ) -> ParticipantRecord:
+        """Bind an unbound participant to one immutable transport identity."""
+
+        selected_participant_id = _nonempty(participant_id, "participant ID")
+        selected_transport_id = _nonempty(
+            transport_participant_id,
+            "transport participant ID",
+        )
+        with self._writer_lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = cast(
+                dict[str, object] | None,
+                connection.execute(
+                    """
+                    SELECT * FROM participants
+                    WHERE conversation_id = ? AND participant_id = ?
+                    """,
+                    (conversation_id, selected_participant_id),
+                ).fetchone(),
+            )
+            if row is None:
+                raise RecordNotFoundError(
+                    f"conversation participant not found: {selected_participant_id}"
+                )
+            participant = _participant_from_row(row)
+            if participant.transport_participant_id == selected_transport_id:
+                return participant
+            if participant.transport_participant_id is not None:
+                raise RecordConflictError(
+                    "conversation participant is already bound to a different transport identity"
+                )
+            connection.execute(
+                """
+                UPDATE participants
+                SET transport_participant_id = ?
+                WHERE conversation_id = ? AND participant_id = ?
+                """,
+                (selected_transport_id, conversation_id, selected_participant_id),
+            )
+            connection.commit()
+        return ParticipantRecord(
+            participant.conversation_id,
+            participant.participant_id,
+            participant.kind,
+            participant.alias_id,
+            participant.display_name,
+            selected_transport_id,
+            participant.joined_at,
+        )
+
     def append_event(
         self,
         conversation_id: str,
