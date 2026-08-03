@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:20:54Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T00:31:00Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -20,6 +20,7 @@ simo:
 - Completed predecessor: `W-20260802-semantic-context-spine` (`DOC-0002`, `DOC-0003`).
 - Completed: `T-001` selected the MLX-native Qwen3-TTS 0.6B CustomVoice 6-bit, Parakeet TDT 0.6B v3, and Qwen3.5 4B 4-bit defaults for the Apple M3 Ultra target.
 - Completed: `T-002` added the installed `simo` command, typed environment configuration, a truthful two-mode preflight, a system-compiler native build, and the deterministic headless lifecycle at `800e5d0`.
-- Active: `T-003` Pipecat context-snapshot injection and the deterministic full fake-provider pipeline.
+- Completed: `T-003` added the causal observer mailbox, ordered Flecs promotion, immutable revisioned context frames, bounded formatting/freshness, deterministic text and PCM TTS providers, and a real Pipecat pipeline at `6ea58b9`.
+- Active: `T-004` validated repository OKF projection into typed Flecs runtime graph entities and incremental refresh.
 - Blocker: none.
-- Next action: implement an immutable per-turn snapshot injection processor and exercise observation, world progression, text inference, TTS frames, and shutdown in one Pipecat pipeline.
+- Next action: define the native runtime knowledge components/relations and a validated Python loader that incrementally refreshes them without conflating OKF paths with Flecs IDs.
