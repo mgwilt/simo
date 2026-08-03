@@ -114,6 +114,7 @@ ignore = [
 "python/simo/cli.py" = ["T201"]
 "python/simo/doctor.py" = ["S404", "S603", "PLW1510"]
 "python/simo/gepard.py" = ["S310"]
+"python/simo/livekit_probe.py" = ["S105", "S404", "S603", "T201"]
 "scripts/**/*.py" = ["T201"]
 "scripts/build_native.py" = ["S404", "S603"]
 "scripts/knowledge/tests/**/*.py" = ["ANN", "PT", "S101"]

@@ -168,6 +168,7 @@ class _LiveKitAudioSession:
         self._cleanup_tasks: set[asyncio.Task[None]] = set()
         self._subscriptions: dict[str, RemoteAudioSubscription] = {}
         self._connected = False
+        self._last_local_participant_sid: str | None = None
         self._owners = 0
         self._lock = asyncio.Lock()
         self.connected = asyncio.Event()
@@ -175,7 +176,7 @@ class _LiveKitAudioSession:
 
     @property
     def local_participant_sid(self) -> str | None:
-        return self._room.local_participant.sid if self._connected else None
+        return self._last_local_participant_sid
 
     @property
     def subscriptions(self) -> tuple[RemoteAudioSubscription, ...]:
@@ -205,6 +206,7 @@ class _LiveKitAudioSession:
                 options.source = rtc.TrackSource.SOURCE_MICROPHONE
                 await self._room.local_participant.publish_track(self._audio_track, options)
                 self._connected = True
+                self._last_local_participant_sid = self._room.local_participant.sid
                 self.connected.set()
                 self._subscribe_existing_audio()
             except BaseException:

@@ -153,6 +153,18 @@ def build_parser() -> argparse.ArgumentParser:
     talk.add_argument("--complete", action="store_true")
     talk.add_argument("--json", action="store_true", dest="as_json")
 
+    lab = subcommands.add_parser("lab", help="run bounded conversational lab experiments")
+    lab_commands = lab.add_subparsers(dest="lab_command", required=True)
+    livekit_probe = lab_commands.add_parser(
+        "prove-webrtc",
+        help="prove bidirectional remote-only audio through a local LiveKit room",
+    )
+    livekit_probe.add_argument(
+        "--server-binary",
+        help="override the livekit-server executable",
+    )
+    livekit_probe.add_argument("--json", action="store_true", dest="as_json")
+
     doctor = subcommands.add_parser("doctor", help="inspect runtime prerequisites")
     doctor.add_argument("--mode", choices=tuple(RunMode), default=RunMode.HEADLESS)
     doctor.add_argument("--json", action="store_true", dest="as_json")
@@ -193,6 +205,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if command in {"alias", "conversation", "memory"}:
             return _run_data_command(args)
+        if command == "lab":
+            return _run_lab_command(args)
         requested_mode = (
             RunMode.MODELS
             if command == "prove-models"
@@ -282,6 +296,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"simo: {error}", file=sys.stderr)
         return 2
     raise AssertionError(f"unhandled command: {args.command}")
+
+
+def _run_lab_command(args: argparse.Namespace) -> int:
+    command = _arg_str(args, "lab_command")
+    if command == "prove-webrtc":
+        from simo.livekit_probe import run_two_process_probe
+
+        result = asyncio.run(
+            run_two_process_probe(
+                server_binary=_arg_optional_str(args, "server_binary"),
+            )
+        )
+        _print_structured(result.as_dict(), _arg_bool(args, "as_json"))
+        return 0
+    raise AssertionError(f"unhandled lab command: {command}")
 
 
 def _run_data_command(args: argparse.Namespace) -> int:
