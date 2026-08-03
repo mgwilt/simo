@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -93,9 +94,62 @@ void test_c_api_json_contract() {
     const auto required = simo_context_engine_snapshot_json(engine.get(), nullptr, 0U);
     assert(required > 1U);
     std::vector<char> buffer(required);
-    assert(simo_context_engine_snapshot_json(engine.get(), buffer.data(), buffer.size()) == required);
+    assert(
+        simo_context_engine_snapshot_json(engine.get(), buffer.data(), buffer.size()) == required);
     const std::string json(buffer.data());
     assert(json.find("\\\"ok\\\"") != std::string::npos);
+}
+
+simo::KnowledgeConceptInput knowledge_input(
+    std::string okf_id,
+    std::string stable_id,
+    std::string title,
+    std::string content_hash) {
+    return {
+        std::move(okf_id),
+        std::move(stable_id),
+        "Architecture Concept",
+        std::move(title),
+        "stable",
+        "architecture",
+        "docs/concept.md",
+        "2026-08-03T00:00:00Z",
+        "2026-09-03",
+        std::move(content_hash),
+    };
+}
+
+void test_incremental_knowledge_projection() {
+    simo::ContextEngine engine;
+    engine.begin_knowledge_refresh();
+    engine.upsert_knowledge_concept(
+        knowledge_input("architecture/one", "DOC-0001", "One", "hash-one"));
+    engine.upsert_knowledge_concept(
+        knowledge_input("interfaces/two", "DOC-0002", "Two", "hash-two"));
+    engine.add_knowledge_reference("architecture/one", "interfaces/two");
+    const auto first_stats = engine.commit_knowledge_refresh();
+    assert(first_stats.revision == 1U);
+    assert(first_stats.concepts == 2U);
+    assert(first_stats.links == 1U);
+    assert(first_stats.removed == 0U);
+    const auto first = engine.knowledge_snapshot();
+    assert(first->concepts[0].okf_id == "architecture/one");
+    assert(first->concepts[0].stable_id == "DOC-0001");
+    assert(first->links[0].relation == "references");
+
+    engine.begin_knowledge_refresh();
+    engine.upsert_knowledge_concept(
+        knowledge_input("interfaces/two", "DOC-0002", "Two revised", "hash-three"));
+    const auto second_stats = engine.commit_knowledge_refresh();
+    assert(second_stats.revision == 2U);
+    assert(second_stats.concepts == 1U);
+    assert(second_stats.links == 0U);
+    assert(second_stats.removed == 1U);
+    const auto second = engine.knowledge_snapshot();
+    assert(second->concepts[0].title == "Two revised");
+    assert(second->concepts[0].content_hash == "hash-three");
+    assert(first->concepts.size() == 2U);
+    assert(first->links.size() == 1U);
 }
 
 }  // namespace
@@ -105,5 +159,6 @@ int main() {
     test_drop_newest_and_retention();
     test_snapshot_is_immutable_value();
     test_c_api_json_contract();
+    test_incremental_knowledge_projection();
     return 0;
 }

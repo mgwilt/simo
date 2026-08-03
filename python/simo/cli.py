@@ -53,6 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "snapshot": result.snapshot,
                         "stats": result.stats,
                         "pipeline": result.pipeline,
+                        "knowledge": result.knowledge,
                     }
                 )
             )

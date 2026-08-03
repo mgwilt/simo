@@ -36,6 +36,28 @@ class EngineStats:
     retained: int
 
 
+@dataclass(frozen=True, slots=True)
+class KnowledgeConcept:
+    okf_id: str
+    stable_id: str
+    type: str
+    title: str
+    status: str
+    authority: str
+    source_path: str
+    verified_at: str
+    stale_after: str
+    content_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeRefreshStats:
+    revision: int
+    concepts: int
+    links: int
+    removed: int
+
+
 class _NativeStats(ctypes.Structure):
     _fields_ = [
         ("accepted", ctypes.c_uint64),
@@ -44,6 +66,15 @@ class _NativeStats(ctypes.Structure):
         ("structural_observations", ctypes.c_uint64),
         ("queued", ctypes.c_size_t),
         ("retained", ctypes.c_size_t),
+    ]
+
+
+class _NativeKnowledgeRefreshStats(ctypes.Structure):
+    _fields_ = [
+        ("revision", ctypes.c_uint64),
+        ("concepts", ctypes.c_size_t),
+        ("links", ctypes.c_size_t),
+        ("removed", ctypes.c_size_t),
     ]
 
 
@@ -117,6 +148,30 @@ def _configure_library(library: ctypes.CDLL) -> None:
         ctypes.POINTER(_NativeStats),
     ]
     library.simo_context_engine_stats.restype = ctypes.c_int
+    library.simo_context_engine_begin_knowledge_refresh.argtypes = [ctypes.c_void_p]
+    library.simo_context_engine_begin_knowledge_refresh.restype = ctypes.c_int
+    library.simo_context_engine_upsert_knowledge_concept.argtypes = [
+        ctypes.c_void_p,
+        *([ctypes.c_char_p] * 10),
+    ]
+    library.simo_context_engine_upsert_knowledge_concept.restype = ctypes.c_int
+    library.simo_context_engine_add_knowledge_reference.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+    ]
+    library.simo_context_engine_add_knowledge_reference.restype = ctypes.c_int
+    library.simo_context_engine_commit_knowledge_refresh.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(_NativeKnowledgeRefreshStats),
+    ]
+    library.simo_context_engine_commit_knowledge_refresh.restype = ctypes.c_int
+    library.simo_context_engine_knowledge_snapshot_json.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+    ]
+    library.simo_context_engine_knowledge_snapshot_json.restype = ctypes.c_size_t
 
 
 class NativeContextEngine:
@@ -224,3 +279,70 @@ class NativeContextEngine:
             queued=native.queued,
             retained=native.retained,
         )
+
+    def begin_knowledge_refresh(self) -> None:
+        result = self._library.simo_context_engine_begin_knowledge_refresh(
+            self._require_handle()
+        )
+        if result != 0:
+            raise RuntimeError("failed to begin native knowledge refresh")
+
+    def upsert_knowledge_concept(self, concept: KnowledgeConcept) -> None:
+        values = (
+            concept.okf_id,
+            concept.stable_id,
+            concept.type,
+            concept.title,
+            concept.status,
+            concept.authority,
+            concept.source_path,
+            concept.verified_at,
+            concept.stale_after,
+            concept.content_hash,
+        )
+        result = self._library.simo_context_engine_upsert_knowledge_concept(
+            self._require_handle(),
+            *(value.encode("utf-8") for value in values),
+        )
+        if result != 0:
+            raise RuntimeError(f"failed to project knowledge concept {concept.okf_id}")
+
+    def add_knowledge_reference(self, source_okf_id: str, target_okf_id: str) -> None:
+        result = self._library.simo_context_engine_add_knowledge_reference(
+            self._require_handle(),
+            source_okf_id.encode("utf-8"),
+            target_okf_id.encode("utf-8"),
+        )
+        if result != 0:
+            raise RuntimeError(
+                f"failed to project knowledge reference {source_okf_id} -> {target_okf_id}"
+            )
+
+    def commit_knowledge_refresh(self) -> KnowledgeRefreshStats:
+        native = _NativeKnowledgeRefreshStats()
+        result = self._library.simo_context_engine_commit_knowledge_refresh(
+            self._require_handle(), ctypes.byref(native)
+        )
+        if result != 0:
+            raise RuntimeError("failed to commit native knowledge refresh")
+        return KnowledgeRefreshStats(
+            revision=native.revision,
+            concepts=native.concepts,
+            links=native.links,
+            removed=native.removed,
+        )
+
+    def knowledge_snapshot(self) -> dict[str, Any]:
+        handle = self._require_handle()
+        function = self._library.simo_context_engine_knowledge_snapshot_json
+        required = int(function(handle, None, 0))
+        if required <= 1:
+            raise RuntimeError("native knowledge graph returned an invalid snapshot size")
+        buffer = ctypes.create_string_buffer(required)
+        written = int(function(handle, buffer, len(buffer)))
+        if written != required:
+            raise RuntimeError("native knowledge graph changed during serialization")
+        value = json.loads(buffer.value.decode("utf-8"))
+        if not isinstance(value, dict):
+            raise TypeError("native knowledge snapshot is not an object")
+        return value

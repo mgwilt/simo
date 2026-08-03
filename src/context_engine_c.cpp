@@ -104,4 +104,102 @@ int simo_context_engine_stats(const simo_context_engine* engine, simo_engine_sta
     }
 }
 
+int simo_context_engine_begin_knowledge_refresh(simo_context_engine* engine) {
+    if (engine == nullptr) {
+        return -1;
+    }
+    try {
+        engine->value.begin_knowledge_refresh();
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simo_context_engine_upsert_knowledge_concept(
+    simo_context_engine* engine,
+    const char* okf_id,
+    const char* stable_id,
+    const char* type,
+    const char* title,
+    const char* status,
+    const char* authority,
+    const char* source_path,
+    const char* verified_at,
+    const char* stale_after,
+    const char* content_hash) {
+    if (engine == nullptr || okf_id == nullptr || stable_id == nullptr || type == nullptr ||
+        title == nullptr || status == nullptr || authority == nullptr ||
+        source_path == nullptr || verified_at == nullptr || stale_after == nullptr ||
+        content_hash == nullptr) {
+        return -1;
+    }
+    try {
+        engine->value.upsert_knowledge_concept({
+            okf_id,
+            stable_id,
+            type,
+            title,
+            status,
+            authority,
+            source_path,
+            verified_at,
+            stale_after,
+            content_hash,
+        });
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simo_context_engine_add_knowledge_reference(
+    simo_context_engine* engine,
+    const char* source_okf_id,
+    const char* target_okf_id) {
+    if (engine == nullptr || source_okf_id == nullptr || target_okf_id == nullptr) {
+        return -1;
+    }
+    try {
+        engine->value.add_knowledge_reference(source_okf_id, target_okf_id);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int simo_context_engine_commit_knowledge_refresh(
+    simo_context_engine* engine,
+    simo_knowledge_refresh_stats* stats) {
+    if (engine == nullptr || stats == nullptr) {
+        return -1;
+    }
+    try {
+        const auto value = engine->value.commit_knowledge_refresh();
+        *stats = {value.revision, value.concepts, value.links, value.removed};
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+size_t simo_context_engine_knowledge_snapshot_json(
+    const simo_context_engine* engine,
+    char* buffer,
+    const size_t capacity) {
+    if (engine == nullptr) {
+        return 0U;
+    }
+    try {
+        const std::string json = engine->value.knowledge_snapshot()->to_json();
+        const auto required = json.size() + 1U;
+        if (buffer != nullptr && capacity >= required) {
+            std::memcpy(buffer, json.c_str(), required);
+        }
+        return required;
+    } catch (...) {
+        return 0U;
+    }
+}
+
 }  // extern "C"

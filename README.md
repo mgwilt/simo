@@ -16,7 +16,7 @@ uv run simo doctor
 uv run simo headless --transcript "hello" --transcript "remember the blue door"
 ```
 
-The headless command loads no speech or language model. It drives final transcript frames through a real Pipecat pipeline, a bounded observer mailbox, ordered Flecs world progression, one immutable context injection per turn, deterministic text inference, PCM TTS frames, counters, and clean shutdown. The inference providers are test doubles, so this is not the live model or voice proof tracked by `W-20260802-finish-realtime-agent`.
+The headless command loads no speech or language model. It validates and projects repository OKF concepts into a typed Flecs graph, then drives final transcript frames through a real Pipecat pipeline, a bounded observer mailbox, ordered Flecs world progression, one immutable context injection per turn, deterministic text inference, PCM TTS frames, counters, and clean shutdown. The inference providers are test doubles, so this is not the live model or voice proof tracked by `W-20260802-finish-realtime-agent`.
 
 ## Preflight
 

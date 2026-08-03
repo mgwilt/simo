@@ -41,6 +41,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(2, result["pipeline"]["context_injections"])
         self.assertEqual(2, result["pipeline"]["llm_text_frames"])
         self.assertEqual(2, result["pipeline"]["tts_audio_frames"])
+        self.assertGreater(result["knowledge"]["concepts"], 0)
+        self.assertGreater(result["knowledge"]["links"], 0)
 
 
 if __name__ == "__main__":

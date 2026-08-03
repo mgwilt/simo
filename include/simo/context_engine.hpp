@@ -52,6 +52,42 @@ struct EngineStats {
     std::size_t retained{0};
 };
 
+struct KnowledgeConceptInput {
+    std::string okf_id;
+    std::string stable_id;
+    std::string type;
+    std::string title;
+    std::string status;
+    std::string authority;
+    std::string source_path;
+    std::string verified_at;
+    std::string stale_after;
+    std::string content_hash;
+};
+
+struct KnowledgeConceptView : KnowledgeConceptInput {};
+
+struct KnowledgeLinkView {
+    std::string source_okf_id;
+    std::string target_okf_id;
+    std::string relation;
+};
+
+struct KnowledgeSnapshot {
+    std::uint64_t revision{0};
+    std::vector<KnowledgeConceptView> concepts;
+    std::vector<KnowledgeLinkView> links;
+
+    [[nodiscard]] std::string to_json() const;
+};
+
+struct KnowledgeRefreshStats {
+    std::uint64_t revision{0};
+    std::size_t concepts{0};
+    std::size_t links{0};
+    std::size_t removed{0};
+};
+
 class SIMO_API ContextEngine final {
 public:
     explicit ContextEngine(EngineConfig config = {});
@@ -69,6 +105,13 @@ public:
     [[nodiscard]] std::size_t tick();
     [[nodiscard]] std::shared_ptr<const ContextSnapshot> snapshot() const;
     [[nodiscard]] EngineStats stats() const;
+    void begin_knowledge_refresh();
+    void upsert_knowledge_concept(KnowledgeConceptInput input);
+    void add_knowledge_reference(
+        const std::string& source_okf_id,
+        const std::string& target_okf_id);
+    [[nodiscard]] KnowledgeRefreshStats commit_knowledge_refresh();
+    [[nodiscard]] std::shared_ptr<const KnowledgeSnapshot> knowledge_snapshot() const;
 
 private:
     class Impl;

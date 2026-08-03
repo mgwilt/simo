@@ -10,6 +10,7 @@ from pipecat.frames.frames import LLMTextFrame, TTSAudioRawFrame
 from simo.adapters.pipecat.deterministic import run_deterministic_pipeline
 from simo.config import RuntimeConfig
 from simo.context import NativeContextEngine
+from simo.knowledge import refresh_knowledge_graph
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +18,7 @@ class HeadlessResult:
     snapshot: dict[str, object]
     stats: dict[str, int]
     pipeline: dict[str, int]
+    knowledge: dict[str, int]
 
 
 class HeadlessRuntime:
@@ -32,6 +34,7 @@ class HeadlessRuntime:
             max_segments=self._config.max_segments,
             library_path=self._config.core_library,
         ) as engine:
+            knowledge = refresh_knowledge_graph(engine, self._config.repository)
             result = await run_deterministic_pipeline(
                 engine,
                 selected,
@@ -53,5 +56,11 @@ class HeadlessRuntime:
                     "tts_audio_frames": sum(
                         isinstance(frame, TTSAudioRawFrame) for frame in result.frames
                     ),
+                },
+                knowledge={
+                    "revision": knowledge.revision,
+                    "concepts": knowledge.concepts,
+                    "links": knowledge.links,
+                    "removed": knowledge.removed,
                 },
             )
