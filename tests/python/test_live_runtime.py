@@ -111,7 +111,7 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [
                 "Endpoint",
-                "EnergyUtteranceProcessor",
+                "SileroUtteranceProcessor",
                 "LocalSTTProcessor",
                 "SemanticTurnProcessor",
                 "LocalTextInferenceProcessor",

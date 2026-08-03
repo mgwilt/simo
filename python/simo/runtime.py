@@ -183,7 +183,10 @@ class LiveRuntime:
             LocalSTTProcessor,
             LocalTextInferenceProcessor,
         )
-        from simo.adapters.pipecat.local_audio import EnergyUtteranceProcessor
+        from pipecat.audio.vad.silero import SileroVADAnalyzer
+        from pipecat.audio.vad.vad_analyzer import VADParams
+
+        from simo.adapters.pipecat.local_audio import SileroUtteranceProcessor
         from simo.adapters.pipecat.observer import PipecatSemanticObserver
         from simo.adapters.pipecat.qwen_tts import QwenMLXTTSService
         from simo.adapters.pipecat.semantic_turn import SemanticTurnProcessor
@@ -214,10 +217,16 @@ class LiveRuntime:
                 mailbox = BoundedTranscriptMailbox(capacity=self._config.queue_capacity)
                 bridge = FinalTranscriptObservationBridge(mailbox)
                 transport = self._transport_factory(self._config)
-                segmenter = EnergyUtteranceProcessor(
-                    start_rms=self._config.vad_start_rms,
-                    start_ms=self._config.vad_start_ms,
-                    stop_ms=self._config.vad_stop_ms,
+                segmenter = SileroUtteranceProcessor(
+                    SileroVADAnalyzer(
+                        sample_rate=16_000,
+                        params=VADParams(
+                            confidence=0.7,
+                            start_secs=0.1,
+                            stop_secs=0.35,
+                            min_volume=0.5,
+                        ),
+                    ),
                     pre_roll_ms=self._config.vad_pre_roll_ms,
                     max_utterance_s=self._config.max_utterance_s,
                     runtime_metrics=metrics,

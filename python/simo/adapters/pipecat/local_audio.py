@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import UTC, datetime
+from typing import Protocol
 
 import numpy as np
+from pipecat.audio.vad.vad_analyzer import VADState
 from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
@@ -45,28 +47,30 @@ class ManagedLocalAudioTransport(LocalAudioTransport):
         self._simo_closed = True
 
 
-class EnergyUtteranceProcessor(FrameProcessor):
-    """Convert 16-bit mono input chunks into bounded utterance frames."""
+class VoiceActivityAnalyzer(Protocol):
+    def set_sample_rate(self, sample_rate: int) -> None: ...
+
+    async def analyze_audio(self, buffer: bytes) -> VADState: ...
+
+    async def cleanup(self) -> None: ...
+
+
+class SileroUtteranceProcessor(FrameProcessor):
+    """Use semantic VAD states to build bounded utterance frames."""
 
     def __init__(
         self,
+        analyzer: VoiceActivityAnalyzer,
         *,
-        start_rms: float = 0.02,
-        start_ms: int = 60,
-        stop_ms: int = 500,
         pre_roll_ms: int = 200,
         max_utterance_s: float = 30.0,
         user_id: str = "local-user",
         runtime_metrics: RuntimeMetrics | None = None,
     ) -> None:
-        if not 0 < start_rms <= 1:
-            raise ValueError("start_rms must be between 0 and 1")
-        if min(start_ms, stop_ms, pre_roll_ms) <= 0 or max_utterance_s <= 0:
+        if pre_roll_ms <= 0 or max_utterance_s <= 0:
             raise ValueError("utterance timing bounds must be positive")
         super().__init__(enable_direct_mode=True)
-        self._start_rms = start_rms
-        self._start_ms = start_ms
-        self._stop_ms = stop_ms
+        self._analyzer = analyzer
         self._pre_roll_ms = pre_roll_ms
         self._max_utterance_s = max_utterance_s
         self._user_id = user_id
@@ -76,8 +80,10 @@ class EnergyUtteranceProcessor(FrameProcessor):
         self._utterance = bytearray()
         self._sample_rate = 0
         self._speaking = False
-        self._speech_ms = 0.0
-        self._silence_ms = 0.0
+
+    async def cleanup(self) -> None:
+        await super().cleanup()
+        await self._analyzer.cleanup()
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
@@ -104,19 +110,19 @@ class EnergyUtteranceProcessor(FrameProcessor):
             raise ValueError("local input must be non-empty 16-bit PCM")
         if self._sample_rate not in (0, frame.sample_rate):
             raise ValueError("local input sample rate changed during an utterance")
+        if self._sample_rate == 0:
+            self._analyzer.set_sample_rate(frame.sample_rate)
         self._sample_rate = frame.sample_rate
         duration_ms = frame.num_frames / frame.sample_rate * 1_000
-        active = _normalized_rms(frame.audio) >= self._start_rms
+        vad_state = await self._analyzer.analyze_audio(frame.audio)
 
         if not self._speaking:
             self._append_pre_roll(frame.audio, duration_ms)
-            self._speech_ms = self._speech_ms + duration_ms if active else 0.0
-            if self._speech_ms >= self._start_ms:
+            if vad_state is VADState.SPEAKING:
                 self._speaking = True
                 self._utterance.extend(b"".join(self._pre_roll))
                 self._pre_roll.clear()
                 self._pre_roll_duration_ms = 0.0
-                self._silence_ms = 0.0
                 await self.push_frame(UserStartedSpeakingFrame(), direction)
                 await self.push_frame(InterruptionFrame(), direction)
                 if self._runtime_metrics is not None:
@@ -126,9 +132,8 @@ class EnergyUtteranceProcessor(FrameProcessor):
             return
 
         self._utterance.extend(frame.audio)
-        self._silence_ms = 0.0 if active else self._silence_ms + duration_ms
         utterance_s = len(self._utterance) / (self._sample_rate * 2)
-        if self._silence_ms >= self._stop_ms or utterance_s >= self._max_utterance_s:
+        if vad_state is VADState.QUIET or utterance_s >= self._max_utterance_s:
             await self._finish_utterance(direction)
 
     def _append_pre_roll(self, audio: bytes, duration_ms: float) -> None:
@@ -163,15 +168,6 @@ class EnergyUtteranceProcessor(FrameProcessor):
         self._utterance.clear()
         self._sample_rate = 0
         self._speaking = False
-        self._speech_ms = 0.0
-        self._silence_ms = 0.0
-
-
-def _normalized_rms(audio: bytes) -> float:
-    samples = np.frombuffer(audio, dtype="<i2").astype(np.float32)
-    if samples.size == 0:
-        return 0.0
-    return float(np.sqrt(np.mean(np.square(samples / 32768.0))))
 
 
 def _acknowledgement_tone() -> OutputAudioRawFrame:

@@ -9,6 +9,7 @@ os.environ.setdefault(
     str(Path(__file__).resolve().parents[1] / "fixtures/nltk_data"),
 )
 
+from pipecat.audio.vad.vad_analyzer import VADState
 from pipecat.frames.frames import (
     CancelFrame,
     InputAudioRawFrame,
@@ -21,8 +22,8 @@ from pipecat.processors.frame_processor import FrameDirection
 
 from simo.adapters.pipecat.inference import PCMUtteranceFrame
 from simo.adapters.pipecat.local_audio import (
-    EnergyUtteranceProcessor,
     ManagedLocalAudioTransport,
+    SileroUtteranceProcessor,
 )
 from simo.operations import RuntimeMetrics
 
@@ -35,13 +36,36 @@ def audio_frame(sample: int, *, sample_rate: int = 16_000) -> InputAudioRawFrame
     )
 
 
-class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
+class FakeAnalyzer:
+    def __init__(self, states: list[VADState]) -> None:
+        self.states = iter(states)
+        self.sample_rates: list[int] = []
+        self.cleaned = False
+
+    def set_sample_rate(self, sample_rate: int) -> None:
+        self.sample_rates.append(sample_rate)
+
+    async def analyze_audio(self, buffer: bytes) -> VADState:
+        return next(self.states, VADState.QUIET)
+
+    async def cleanup(self) -> None:
+        self.cleaned = True
+
+
+class SileroUtteranceTests(unittest.IsolatedAsyncioTestCase):
     async def test_segments_pcm_and_emits_interruption_at_speech_start(self) -> None:
         metrics = RuntimeMetrics()
-        processor = EnergyUtteranceProcessor(
-            start_rms=0.02,
-            start_ms=60,
-            stop_ms=60,
+        analyzer = FakeAnalyzer(
+            [
+                VADState.STARTING,
+                VADState.SPEAKING,
+                VADState.SPEAKING,
+                VADState.STOPPING,
+                VADState.QUIET,
+            ]
+        )
+        processor = SileroUtteranceProcessor(
+            analyzer,
             pre_roll_ms=200,
             runtime_metrics=metrics,
         )
@@ -51,10 +75,8 @@ class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
             frames.append(frame)
 
         processor.push_frame = collect  # type: ignore[method-assign]
-        for _ in range(3):
+        for _ in range(5):
             await processor.process_frame(audio_frame(3_000), FrameDirection.DOWNSTREAM)
-        for _ in range(3):
-            await processor.process_frame(audio_frame(0), FrameDirection.DOWNSTREAM)
 
         self.assertIsInstance(frames[0], UserStartedSpeakingFrame)
         self.assertIsInstance(frames[1], InterruptionFrame)
@@ -64,14 +86,17 @@ class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(frames[4], PCMUtteranceFrame)
         utterance = frames[4]
         self.assertEqual(16_000, utterance.sample_rate)  # type: ignore[union-attr]
-        self.assertEqual(6 * 640, len(utterance.audio))  # type: ignore[union-attr]
+        self.assertEqual(5 * 640, len(utterance.audio))  # type: ignore[union-attr]
+        self.assertEqual([16_000], analyzer.sample_rates)
         self.assertEqual(
             {"utterances_started": 1, "interruption_signals": 1},
             metrics.snapshot()["audio_activity"],
         )
 
     async def test_cancel_discards_partial_utterance(self) -> None:
-        processor = EnergyUtteranceProcessor(start_ms=20, stop_ms=60)
+        processor = SileroUtteranceProcessor(
+            FakeAnalyzer([VADState.SPEAKING, VADState.QUIET])
+        )
         frames: list[object] = []
 
         async def collect(frame: object, direction: FrameDirection) -> None:
@@ -87,7 +112,9 @@ class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(frames[-1], CancelFrame)
 
     async def test_rejects_non_mono_and_sample_rate_changes(self) -> None:
-        processor = EnergyUtteranceProcessor(start_ms=60)
+        processor = SileroUtteranceProcessor(
+            FakeAnalyzer([VADState.SPEAKING, VADState.SPEAKING])
+        )
         stereo = InputAudioRawFrame(b"\x00\x00" * 640, 16_000, 2)
         with self.assertRaisesRegex(ValueError, "mono"):
             await processor.process_frame(stereo, FrameDirection.DOWNSTREAM)
@@ -98,6 +125,14 @@ class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
                 audio_frame(3_000, sample_rate=24_000),
                 FrameDirection.DOWNSTREAM,
             )
+
+    async def test_cleanup_releases_vad_analyzer(self) -> None:
+        analyzer = FakeAnalyzer([])
+        processor = SileroUtteranceProcessor(analyzer)
+
+        await processor.cleanup()
+
+        self.assertTrue(analyzer.cleaned)
 
     async def test_managed_transport_releases_pyaudio_and_executor_once(self) -> None:
         calls: list[str] = []
