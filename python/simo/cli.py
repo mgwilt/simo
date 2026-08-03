@@ -5,8 +5,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from collections.abc import Sequence
+
+# Keep the default CLI event stream machine-readable. Pipecat uses Loguru and
+# operators may opt into its separate diagnostics explicitly in future modes.
+os.environ.setdefault("LOGURU_AUTOINIT", "False")
 
 from simo.config import RunMode, RuntimeConfig
 from simo.doctor import DoctorReport, inspect_runtime

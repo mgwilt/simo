@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
@@ -70,6 +72,23 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(130, status)
         self.assertEqual("simo: interrupted", errors.getvalue().strip())
+
+    def test_subprocess_event_stream_is_jsonl_without_content(self) -> None:
+        command = (
+            "from simo.cli import main; "
+            "raise SystemExit(main(['headless','--transcript','private sentinel']))"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", command],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        events = [json.loads(line) for line in result.stderr.splitlines()]
+        self.assertTrue(events)
+        self.assertTrue(all(event["schema"] == "simo.event.v1" for event in events))
+        self.assertNotIn("private sentinel", result.stderr)
 
 
 if __name__ == "__main__":
