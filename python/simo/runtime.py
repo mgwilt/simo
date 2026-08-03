@@ -221,10 +221,10 @@ class LiveRuntime:
                     SileroVADAnalyzer(
                         sample_rate=16_000,
                         params=VADParams(
-                            confidence=0.7,
+                            confidence=0.5,
                             start_secs=0.1,
                             stop_secs=0.35,
-                            min_volume=0.5,
+                            min_volume=0.0,
                         ),
                     ),
                     pre_roll_ms=self._config.vad_pre_roll_ms,

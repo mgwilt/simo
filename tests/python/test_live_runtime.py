@@ -120,6 +120,13 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ],
             names,
         )
+        segmenter = next(
+            processor
+            for processor in user_pipeline.processors
+            if type(processor).__name__ == "SileroUtteranceProcessor"
+        )
+        self.assertEqual(0.5, segmenter._analyzer.params.confidence)
+        self.assertEqual(0.0, segmenter._analyzer.params.min_volume)
         self.assertTrue(result.operations["clean_shutdown"])
         self.assertEqual("completed", result.operations["shutdown_reason"])
 
