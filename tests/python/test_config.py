@@ -5,8 +5,11 @@ from pathlib import Path
 
 from simo.config import (
     PARAKEET_STT_MODEL,
+    PARAKEET_STT_REVISION,
     QWEN_TEXT_MODEL,
+    QWEN_TEXT_REVISION,
     QWEN_TTS_MODEL,
+    QWEN_TTS_REVISION,
     RunMode,
     RuntimeConfig,
 )
@@ -17,8 +20,11 @@ class RuntimeConfigTests(unittest.TestCase):
         config = RuntimeConfig.from_environment({})
         self.assertEqual(RunMode.HEADLESS, config.mode)
         self.assertEqual(QWEN_TTS_MODEL, config.tts.model_id)
+        self.assertEqual(QWEN_TTS_REVISION, config.tts.revision)
         self.assertEqual(PARAKEET_STT_MODEL, config.stt.model_id)
+        self.assertEqual(PARAKEET_STT_REVISION, config.stt.revision)
         self.assertEqual(QWEN_TEXT_MODEL, config.text.model_id)
+        self.assertEqual(QWEN_TEXT_REVISION, config.text.revision)
         self.assertEqual(config.repository / ".models", config.models_dir)
         self.assertEqual(8_000, config.context_max_chars)
         self.assertEqual(1_000, config.context_max_age_ms)
@@ -43,6 +49,7 @@ class RuntimeConfigTests(unittest.TestCase):
                 "SIMO_CONTEXT_MAX_CHARS": "500",
                 "SIMO_CONTEXT_MAX_AGE_MS": "250",
                 "SIMO_TTS_MODEL": "example/tts",
+                "SIMO_TTS_REVISION": "revision-1",
                 "SIMO_TTS_VOICE": "Ryan",
                 "SIMO_TTS_STREAMING_INTERVAL_S": "0.5",
                 "SIMO_AUDIO_INPUT_DEVICE_INDEX": "0",
@@ -61,6 +68,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(250, config.context_max_age_ms)
         self.assertEqual(Path("/tmp/libsimo-test.dylib"), config.core_library)
         self.assertEqual(Path("/tmp/simo-test-models/tts"), config.tts.local_path)
+        self.assertEqual("revision-1", config.tts.revision)
         self.assertEqual("Ryan", config.tts_voice)
         self.assertEqual(0.5, config.tts_streaming_interval_s)
         self.assertEqual(0, config.audio_input_device_index)

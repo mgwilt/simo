@@ -8,10 +8,9 @@ import platform
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import Any
 
-from simo.config import RunMode, RuntimeConfig
+from simo.config import ModelConfig, RunMode, RuntimeConfig
 from simo.context import find_core_library
 
 
@@ -90,7 +89,7 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
         )
         checks.append(_nltk_data_check())
         checks.extend(
-            _model_check(name, model.local_path)
+            _model_check(name, model)
             for name, model in (
                 ("TTS model", config.tts),
                 ("STT model", config.stt),
@@ -115,10 +114,35 @@ def _module_check(name: str, module: str) -> Check:
     return Check(name, found, True, detail)
 
 
-def _model_check(name: str, path: Path) -> Check:
-    found = path.is_dir() and any(path.iterdir())
-    detail = str(path) if found else f"not downloaded at {path}"
-    return Check(name, found, True, detail)
+def _model_check(name: str, model: ModelConfig) -> Check:
+    path = model.local_path
+    if not path.is_dir():
+        return Check(name, False, True, f"not downloaded at {path}")
+    missing = [
+        relative for relative in model.required_paths if not (path / relative).is_file()
+    ]
+    if missing:
+        return Check(
+            name, False, True, f"incomplete at {path}; missing {', '.join(missing)}"
+        )
+    marker_path = path / ".simo-model.json"
+    try:
+        marker = json.loads(marker_path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return Check(
+            name, False, True, f"unverified at {path}; run scripts/setup_models.py"
+        )
+    if (
+        marker.get("model_id") != model.model_id
+        or marker.get("revision") != model.revision
+    ):
+        return Check(
+            name,
+            False,
+            True,
+            f"model marker does not match configured revision at {path}",
+        )
+    return Check(name, True, True, f"{path} @ {model.revision[:12]}")
 
 
 def _mlx_metal_check() -> Check:

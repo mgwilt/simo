@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from simo.config import RunMode, RuntimeConfig
-from simo.doctor import _local_audio_device_check, inspect_runtime
+from simo.doctor import _local_audio_device_check, _model_check, inspect_runtime
 
 
 class DoctorTests(unittest.TestCase):
@@ -67,6 +68,36 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(check.ok)
         self.assertEqual("input=Mic; output=Speaker", check.detail)
         self.assertEqual(["2", "4"], run.call_args.args[0][-2:])
+
+    def test_model_check_requires_files_and_matching_revision_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = RuntimeConfig.from_environment({"SIMO_MODELS_DIR": directory})
+            for relative in config.tts.required_paths:
+                path = config.tts.local_path / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"fixture")
+
+            unverified = _model_check("TTS model", config.tts)
+            self.assertFalse(unverified.ok)
+            self.assertIn("unverified", unverified.detail)
+
+            marker = config.tts.local_path / ".simo-model.json"
+            marker.write_text(
+                json.dumps({"model_id": config.tts.model_id, "revision": "wrong"})
+            )
+            mismatch = _model_check("TTS model", config.tts)
+            self.assertFalse(mismatch.ok)
+            self.assertIn("does not match", mismatch.detail)
+
+            marker.write_text(
+                json.dumps(
+                    {
+                        "model_id": config.tts.model_id,
+                        "revision": config.tts.revision,
+                    }
+                )
+            )
+            self.assertTrue(_model_check("TTS model", config.tts).ok)
 
 
 if __name__ == "__main__":

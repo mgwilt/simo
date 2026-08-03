@@ -11,6 +11,9 @@ from typing import Mapping, Self
 QWEN_TTS_MODEL = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit"
 PARAKEET_STT_MODEL = "mlx-community/parakeet-tdt-0.6b-v3"
 QWEN_TEXT_MODEL = "mlx-community/Qwen3.5-4B-4bit"
+QWEN_TTS_REVISION = "7dc92af14613355896fcab13b268c19ede233139"
+PARAKEET_STT_REVISION = "ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15"
+QWEN_TEXT_REVISION = "0e7ffd5c629ef7719d4cbc04069232580bfa9d9c"
 
 
 class RunMode(StrEnum):
@@ -23,7 +26,9 @@ class RunMode(StrEnum):
 @dataclass(frozen=True, slots=True)
 class ModelConfig:
     model_id: str
+    revision: str
     local_path: Path
+    required_paths: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,12 +96,26 @@ class RuntimeConfig:
             0.32,
         )
 
-        def model(env_name: str, default_id: str) -> ModelConfig:
+        def model(
+            env_name: str,
+            revision_env_name: str,
+            default_id: str,
+            default_revision: str,
+            required_paths: tuple[str, ...],
+        ) -> ModelConfig:
             model_id = values.get(env_name, default_id).strip()
             if not model_id:
                 raise ValueError(f"{env_name} must not be empty")
+            revision = values.get(revision_env_name, default_revision).strip()
+            if not revision:
+                raise ValueError(f"{revision_env_name} must not be empty")
             directory = model_id.rsplit("/", 1)[-1]
-            return ModelConfig(model_id=model_id, local_path=models_dir / directory)
+            return ModelConfig(
+                model_id=model_id,
+                revision=revision,
+                local_path=models_dir / directory,
+                required_paths=required_paths,
+            )
 
         return cls(
             mode=selected_mode,
@@ -116,9 +135,32 @@ class RuntimeConfig:
             max_utterance_s=max_utterance_s,
             tts_voice=tts_voice,
             tts_streaming_interval_s=tts_streaming_interval_s,
-            tts=model("SIMO_TTS_MODEL", QWEN_TTS_MODEL),
-            stt=model("SIMO_STT_MODEL", PARAKEET_STT_MODEL),
-            text=model("SIMO_TEXT_MODEL", QWEN_TEXT_MODEL),
+            tts=model(
+                "SIMO_TTS_MODEL",
+                "SIMO_TTS_REVISION",
+                QWEN_TTS_MODEL,
+                QWEN_TTS_REVISION,
+                (
+                    "config.json",
+                    "model.safetensors",
+                    "speech_tokenizer/config.json",
+                    "speech_tokenizer/model.safetensors",
+                ),
+            ),
+            stt=model(
+                "SIMO_STT_MODEL",
+                "SIMO_STT_REVISION",
+                PARAKEET_STT_MODEL,
+                PARAKEET_STT_REVISION,
+                ("config.json", "model.safetensors", "tokenizer.model"),
+            ),
+            text=model(
+                "SIMO_TEXT_MODEL",
+                "SIMO_TEXT_REVISION",
+                QWEN_TEXT_MODEL,
+                QWEN_TEXT_REVISION,
+                ("config.json", "model.safetensors", "tokenizer.json"),
+            ),
         )
 
 
