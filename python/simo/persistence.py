@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import json
 import os
 import shutil
@@ -13,10 +15,10 @@ import zipfile
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Final, cast
+from typing import Final, Protocol, cast
 from uuid import UUID, uuid4
 
 import yaml
@@ -31,10 +33,20 @@ from simo.config import (
     QWEN_TTS_REVISION,
 )
 
-SCHEMA_VERSION: Final = 1
+SCHEMA_VERSION: Final = 2
 ALIAS_EXPORT_SCHEMA: Final = "simo.alias-export.v1"
 ALIAS_MANIFEST_SCHEMA: Final = "simo.alias.v1"
 MAX_ALIAS_EXPORT_BYTES: Final = 64 * 1024 * 1024
+
+
+class _FileLockModule(Protocol):
+    LOCK_EX: int
+    LOCK_UN: int
+
+    def flock(self, descriptor: int, operation: int) -> None: ...
+
+
+_FILE_LOCK = cast("_FileLockModule", fcntl)
 
 
 class SimoDataError(RuntimeError):
@@ -181,6 +193,34 @@ class TranscriptTurn:
         return cast(dict[str, object], asdict(self))
 
 
+@dataclass(frozen=True, slots=True)
+class MemoryClaim:
+    claim_id: str
+    owner_alias_id: str
+    subject_id: str
+    subject_alias_id: str | None
+    claim_key: str
+    claim_class: str
+    content: str
+    source_conversation_id: str | None
+    source_event_id: str | None
+    provenance: dict[str, object]
+    confidence: float
+    sensitivity: str
+    status: str
+    supersedes_claim_id: str | None
+    contradicts_claim_id: str | None
+    created_at: str
+    updated_at: str
+    stale_after: str | None
+    materialized_path: str
+
+    def as_dict(self) -> dict[str, object]:
+        result = cast(dict[str, object], asdict(self))
+        result["provenance"] = dict(self.provenance)
+        return result
+
+
 def resolve_data_root(
     explicit: Path | str | None = None,
     environ: Mapping[str, str] | None = None,
@@ -219,15 +259,17 @@ def default_runtime_profile() -> dict[str, object]:
     }
 
 
-class SimoStore:
+class SimoStore:  # noqa: PLR0904 - one transactional facade owns the local data contract.
     """Own Simo's versioned local SQLite and alias-bundle storage."""
 
     def __init__(self, root: Path | str | None = None) -> None:
         self.root = resolve_data_root(root)
         self.aliases_root = self.root / "aliases"
+        self.locks_root = self.root / "locks"
         self.database_path = self.root / "simo.sqlite3"
         self._writer_lock = threading.RLock()
         self.aliases_root.mkdir(parents=True, exist_ok=True)
+        self.locks_root.mkdir(parents=True, exist_ok=True)
         self._initialize_database()
 
     def create_alias(
@@ -866,19 +908,269 @@ class SimoStore:
         )
 
     def delete_conversation(self, conversation_id: str) -> None:
+        owner_alias_ids: tuple[str, ...]
         with self._writer_lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            owner_alias_ids = tuple(
+                _required_str(row, "owner_alias_id")
+                for row in cast(
+                    list[dict[str, object]],
+                    connection.execute(
+                        """
+                        SELECT DISTINCT owner_alias_id FROM memory_claims
+                        WHERE source_conversation_id = ?
+                        """,
+                        (conversation_id,),
+                    ).fetchall(),
+                )
+            )
             cursor = connection.execute(
                 "DELETE FROM conversations WHERE conversation_id = ?", (conversation_id,)
             )
             if cursor.rowcount == 0:
                 raise RecordNotFoundError(f"conversation not found: {conversation_id}")
             connection.commit()
+        for alias_id in owner_alias_ids:
+            with self._alias_memory_writer(alias_id):
+                self._materialize_memory_bundle(alias_id)
+
+    def get_memory_claim(self, claim_id: str) -> MemoryClaim:
+        with self._connect() as connection:
+            row = cast(
+                dict[str, object] | None,
+                connection.execute(
+                    "SELECT * FROM memory_claims WHERE claim_id = ?", (claim_id,)
+                ).fetchone(),
+            )
+        if row is None:
+            raise RecordNotFoundError(f"memory claim not found: {claim_id}")
+        return _memory_claim_from_row(row)
+
+    def list_memory_claims(
+        self,
+        owner_alias_id: str,
+        *,
+        subject_id: str | None = None,
+        status: str | None = None,
+    ) -> tuple[MemoryClaim, ...]:
+        self.get_alias(owner_alias_id)
+        parameters: list[object] = [owner_alias_id]
+        sql = "SELECT * FROM memory_claims WHERE owner_alias_id = ?"
+        if subject_id is not None:
+            sql += " AND subject_id = ?"
+            parameters.append(_nonempty(subject_id, "memory subject ID"))
+        if status is not None:
+            if status not in {"active", "superseded", "rejected"}:
+                raise ValueError("memory status must be active, superseded, or rejected")
+            sql += " AND status = ?"
+            parameters.append(status)
+        sql += " ORDER BY created_at, claim_id"
+        with self._connect() as connection:
+            rows = cast(
+                list[dict[str, object]],
+                connection.execute(sql, tuple(parameters)).fetchall(),
+            )
+        return tuple(_memory_claim_from_row(row) for row in rows)
+
+    def promote_memory_claim(
+        self,
+        owner_alias_id: str,
+        subject_id: str,
+        claim_key: str,
+        claim_class: str,
+        content: str,
+        *,
+        source_conversation_id: str,
+        source_event_id: str,
+        subject_alias_id: str | None = None,
+        confidence: float = 0.95,
+        sensitivity: str = "low",
+        contradiction: bool = False,
+        stale_after: str | None = None,
+    ) -> MemoryClaim:
+        """Promote one low-risk directly attributed claim through the alias writer."""
+
+        if sensitivity != "low":
+            raise ValueError("automatic memory promotion accepts low sensitivity only")
+        selected_subject = _nonempty(subject_id, "memory subject ID")
+        selected_key = _nonempty(claim_key, "memory claim key")
+        selected_class = _nonempty(claim_class, "memory claim class")
+        selected_content = _nonempty(content, "memory claim content")
+        if not 0 <= confidence <= 1:
+            raise ValueError("memory confidence must be between zero and one")
+        with self._alias_memory_writer(owner_alias_id):
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                self._get_alias_in(connection, owner_alias_id)
+                source = cast(
+                    dict[str, object] | None,
+                    connection.execute(
+                        """
+                        SELECT e.*, p.alias_id AS source_alias_id
+                        FROM conversation_events e
+                        JOIN participants p
+                          ON p.conversation_id = e.conversation_id
+                         AND p.participant_id = e.participant_id
+                        WHERE e.event_id = ? AND e.conversation_id = ?
+                        """,
+                        (source_event_id, source_conversation_id),
+                    ).fetchone(),
+                )
+                if source is None:
+                    raise RecordNotFoundError("memory source event was not found")
+                if _optional_str(source, "participant_id") != selected_subject:
+                    raise RecordConflictError(
+                        "memory subject does not match the source participant"
+                    )
+                if (
+                    _required_str(source, "event_type")
+                    != ConversationEventType.USER_TRANSCRIPT_FINAL
+                ):
+                    raise RecordConflictError(
+                        "automatic memory requires a final attributed transcript"
+                    )
+                if not connection.execute(
+                    """
+                    SELECT 1 FROM participants
+                    WHERE conversation_id = ? AND alias_id = ? AND kind = 'alias'
+                    """,
+                    (source_conversation_id, owner_alias_id),
+                ).fetchone():
+                    raise RecordConflictError(
+                        "memory owner is not a participant in the conversation"
+                    )
+                source_alias_id = _optional_str(source, "source_alias_id")
+                if subject_alias_id is not None and source_alias_id != subject_alias_id:
+                    raise RecordConflictError("subject alias does not match source attribution")
+                existing = self._active_memory_in(
+                    connection,
+                    owner_alias_id,
+                    selected_subject,
+                    selected_key,
+                )
+                if existing is not None and existing.content == selected_content:
+                    connection.commit()
+                    return existing
+                timestamp = _utc_now()
+                claim_id = str(uuid4())
+                expiration = (
+                    stale_after or (datetime.now(UTC) + timedelta(days=180)).date().isoformat()
+                )
+                provenance: dict[str, object] = {
+                    "actor": selected_subject,
+                    "conversation_id": source_conversation_id,
+                    "event_id": source_event_id,
+                    "event_sequence": _required_int(source, "sequence"),
+                    "method": "direct-attributed-transcript",
+                }
+                if existing is not None:
+                    connection.execute(
+                        """
+                        UPDATE memory_claims SET status = 'superseded', updated_at = ?
+                        WHERE claim_id = ?
+                        """,
+                        (timestamp, existing.claim_id),
+                    )
+                claim = MemoryClaim(
+                    claim_id,
+                    owner_alias_id,
+                    selected_subject,
+                    subject_alias_id,
+                    selected_key,
+                    selected_class,
+                    selected_content,
+                    source_conversation_id,
+                    source_event_id,
+                    provenance,
+                    confidence,
+                    sensitivity,
+                    "active",
+                    existing.claim_id if existing is not None else None,
+                    existing.claim_id if contradiction and existing is not None else None,
+                    timestamp,
+                    timestamp,
+                    expiration,
+                    _memory_materialized_path(selected_subject, claim_id),
+                )
+                self._insert_memory_claim(connection, claim)
+                connection.commit()
+            self._materialize_memory_bundle(owner_alias_id)
+        return claim
+
+    def correct_memory_claim(self, claim_id: str, content: str) -> MemoryClaim:
+        selected_content = _nonempty(content, "corrected memory content")
+        current = self.get_memory_claim(claim_id)
+        if current.status != "active":
+            raise RecordConflictError("only an active memory claim can be corrected")
+        with self._alias_memory_writer(current.owner_alias_id):
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                active = self._active_memory_in(
+                    connection,
+                    current.owner_alias_id,
+                    current.subject_id,
+                    current.claim_key,
+                )
+                if active is None or active.claim_id != current.claim_id:
+                    raise RecordConflictError("memory claim is no longer active")
+                timestamp = _utc_now()
+                connection.execute(
+                    "UPDATE memory_claims SET status = 'superseded', updated_at = ? WHERE claim_id = ?",
+                    (timestamp, current.claim_id),
+                )
+                replacement_id = str(uuid4())
+                provenance: dict[str, object] = {
+                    "actor": "operator",
+                    "method": "explicit-correction",
+                    "corrected_claim_id": current.claim_id,
+                    "conversation_id": current.source_conversation_id,
+                    "event_id": current.source_event_id,
+                }
+                replacement = MemoryClaim(
+                    replacement_id,
+                    current.owner_alias_id,
+                    current.subject_id,
+                    current.subject_alias_id,
+                    current.claim_key,
+                    current.claim_class,
+                    selected_content,
+                    current.source_conversation_id,
+                    current.source_event_id,
+                    provenance,
+                    1.0,
+                    current.sensitivity,
+                    "active",
+                    current.claim_id,
+                    current.claim_id,
+                    timestamp,
+                    timestamp,
+                    current.stale_after,
+                    _memory_materialized_path(current.subject_id, replacement_id),
+                )
+                self._insert_memory_claim(connection, replacement)
+                connection.commit()
+            self._materialize_memory_bundle(current.owner_alias_id)
+        return replacement
+
+    def forget_memory_claim(self, claim_id: str) -> MemoryClaim:
+        current = self.get_memory_claim(claim_id)
+        with self._alias_memory_writer(current.owner_alias_id):
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                cursor = connection.execute(
+                    "DELETE FROM memory_claims WHERE claim_id = ?", (claim_id,)
+                )
+                if cursor.rowcount == 0:
+                    raise RecordNotFoundError(f"memory claim not found: {claim_id}")
+                connection.commit()
+            self._materialize_memory_bundle(current.owner_alias_id)
+        return current
 
     def export_alias(self, alias_id: str, destination: Path | str) -> Path:
         alias = self.get_alias(alias_id)
         personas = self.list_persona_versions(alias_id)
         profiles = self.list_runtime_profile_versions(alias_id)
+        memories = self.list_memory_claims(alias_id)
         target = Path(destination).expanduser().resolve()
         if target.exists():
             raise RecordConflictError(f"export destination already exists: {target}")
@@ -889,6 +1181,7 @@ class SimoStore:
             "alias": alias.as_dict(),
             "personas": [item.as_dict() for item in personas],
             "runtime_profiles": [item.as_dict() for item in profiles],
+            "memory_claims": [item.as_dict() for item in memories],
         }
         with zipfile.ZipFile(target, "x", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("records.json", _json_dump(payload))
@@ -950,7 +1243,15 @@ class SimoStore:
                 _profile_from_mapping(item)
                 for item in _required_object_list(records, "runtime_profiles")
             )
-            self._validate_import_versions(alias, personas, profiles)
+            memories = tuple(
+                _memory_claim_from_mapping(item)
+                for item in (
+                    _required_object_list(records, "memory_claims")
+                    if "memory_claims" in records
+                    else ()
+                )
+            )
+            self._validate_import_versions(alias, personas, profiles, memories)
             target = self.aliases_root / alias.alias_id
             with self._writer_lock, self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -961,7 +1262,7 @@ class SimoStore:
                     or target.exists()
                 ):
                     raise RecordConflictError(f"alias already exists: {alias.alias_id}")
-                self._insert_import(connection, alias, personas, profiles)
+                self._insert_import(connection, alias, personas, profiles, memories)
                 extracted.replace(target)
                 connection.commit()
         return alias
@@ -975,10 +1276,12 @@ class SimoStore:
             if version_row is None:
                 raise SimoDataError("could not read the Simo data schema version")
             version = _required_int(version_row, "user_version")
-            if version not in {0, SCHEMA_VERSION}:
+            if version not in {0, 1, SCHEMA_VERSION}:
                 raise SimoDataError(
                     f"unsupported Simo data schema {version}; expected {SCHEMA_VERSION}"
                 )
+            if version == 1:
+                connection.executescript(_MIGRATE_V1_TO_V2_SQL)
             connection.executescript(_SCHEMA_SQL)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
@@ -1020,14 +1323,18 @@ class SimoStore:
     def _write_new_alias_bundle(self, alias: AliasRecord, persona: PersonaVersion) -> None:
         alias_root = self.aliases_root / alias.alias_id
         (alias_root / "knowledge" / "personas").mkdir(parents=True)
-        _atomic_text(
-            alias_root / "knowledge" / "index.md",
-            '---\nokf_version: "0.2"\n---\n# Alias knowledge\n\n'
-            "- [Personas](personas/) - Versioned identity and speaking-style concepts.\n",
-        )
+        self._write_alias_knowledge_index(alias.alias_id)
         self._write_persona_concept(alias, persona)
         self._write_persona_index(alias.alias_id, (persona,))
         self._write_manifest(alias)
+
+    def _write_alias_knowledge_index(self, alias_id: str) -> None:
+        _atomic_text(
+            self.aliases_root / alias_id / "knowledge" / "index.md",
+            '---\nokf_version: "0.2"\n---\n# Alias knowledge\n\n'
+            "- [Personas](personas/) - Versioned identity and speaking-style concepts.\n"
+            "- [Relationships](relationships/) - Perspective-bound learned memory claims.\n",
+        )
 
     def _write_manifest(self, alias: AliasRecord) -> None:
         manifest: dict[str, object] = {
@@ -1087,11 +1394,158 @@ class SimoStore:
             "\n".join(lines),
         )
 
+    @contextmanager
+    def _alias_memory_writer(self, alias_id: str) -> Generator[None]:
+        self.get_alias(alias_id)
+        lock_path = self.locks_root / f"memory-{alias_id}.lock"
+        with self._writer_lock, lock_path.open("a+b") as lock_file:
+            _FILE_LOCK.flock(lock_file.fileno(), _FILE_LOCK.LOCK_EX)
+            try:
+                yield
+            finally:
+                _FILE_LOCK.flock(lock_file.fileno(), _FILE_LOCK.LOCK_UN)
+
+    def _active_memory_in(
+        self,
+        connection: sqlite3.Connection,
+        owner_alias_id: str,
+        subject_id: str,
+        claim_key: str,
+    ) -> MemoryClaim | None:
+        row = cast(
+            dict[str, object] | None,
+            connection.execute(
+                """
+                SELECT * FROM memory_claims
+                WHERE owner_alias_id = ? AND subject_id = ? AND claim_key = ?
+                  AND status = 'active'
+                """,
+                (owner_alias_id, subject_id, claim_key),
+            ).fetchone(),
+        )
+        return _memory_claim_from_row(row) if row is not None else None
+
+    def _insert_memory_claim(
+        self,
+        connection: sqlite3.Connection,
+        claim: MemoryClaim,
+        *,
+        preserve_live_sources: bool = True,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO memory_claims (
+                claim_id, owner_alias_id, subject_id, subject_alias_id,
+                claim_key, claim_class, content,
+                source_conversation_id, source_event_id, provenance_json,
+                confidence, sensitivity, status,
+                supersedes_claim_id, contradicts_claim_id,
+                created_at, updated_at, stale_after, materialized_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                claim.claim_id,
+                claim.owner_alias_id,
+                claim.subject_id,
+                claim.subject_alias_id if preserve_live_sources else None,
+                claim.claim_key,
+                claim.claim_class,
+                claim.content,
+                claim.source_conversation_id if preserve_live_sources else None,
+                claim.source_event_id if preserve_live_sources else None,
+                _json_dump(claim.provenance),
+                claim.confidence,
+                claim.sensitivity,
+                claim.status,
+                claim.supersedes_claim_id,
+                claim.contradicts_claim_id,
+                claim.created_at,
+                claim.updated_at,
+                claim.stale_after,
+                claim.materialized_path,
+            ),
+        )
+
+    def _materialize_memory_bundle(self, alias_id: str) -> None:
+        claims = self.list_memory_claims(alias_id)
+        relationships_root = self.aliases_root / alias_id / "knowledge" / "relationships"
+        if relationships_root.exists():
+            for path in sorted(relationships_root.rglob("*.md"), reverse=True):
+                path.unlink()
+            for path in sorted(
+                (item for item in relationships_root.rglob("*") if item.is_dir()),
+                reverse=True,
+            ):
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+        relationships_root.mkdir(parents=True, exist_ok=True)
+        self._write_alias_knowledge_index(alias_id)
+        by_subject: dict[str, list[MemoryClaim]] = {}
+        for claim in claims:
+            by_subject.setdefault(claim.subject_id, []).append(claim)
+            target = self.aliases_root / alias_id / claim.materialized_path
+            metadata: dict[str, object] = {
+                "type": "Memory Claim",
+                "title": f"Relationship memory {claim.claim_id}",
+                "description": claim.content,
+                "tags": ["alias", "memory", "relationship", claim.claim_class],
+                "status": "stable" if claim.status == "active" else "deprecated",
+                "generated": {"by": "process:simo-learning", "at": claim.created_at},
+                "simo": {
+                    "profile_version": 1,
+                    "alias_id": claim.owner_alias_id,
+                    "claim_id": claim.claim_id,
+                    "subject_id": claim.subject_id,
+                    "subject_alias_id": claim.subject_alias_id,
+                    "claim_key": claim.claim_key,
+                    "claim_class": claim.claim_class,
+                    "lifecycle_status": claim.status,
+                    "confidence": claim.confidence,
+                    "sensitivity": claim.sensitivity,
+                    "provenance": claim.provenance,
+                    "freshness": {
+                        "created_at": claim.created_at,
+                        "stale_after": claim.stale_after,
+                    },
+                    "supersedes_claim_id": claim.supersedes_claim_id,
+                    "contradicts_claim_id": claim.contradicts_claim_id,
+                },
+            }
+            frontmatter = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True).strip()
+            _atomic_text(
+                target,
+                f"---\n{frontmatter}\n---\n# Relationship memory\n\n{claim.content}\n",
+            )
+        relationship_lines = ["# Relationships", ""]
+        for subject_id, subject_claims in sorted(by_subject.items()):
+            subject_path = _memory_subject_directory(subject_id)
+            relationship_lines.append(
+                f"- [{subject_id}]({subject_path}/) - {len(subject_claims)} retained claim(s)."
+            )
+            subject_lines = [f"# Memories about {subject_id}", ""]
+            for claim in subject_claims:
+                filename = Path(claim.materialized_path).name
+                subject_lines.append(
+                    f"- [{claim.claim_id}](claims/{filename}) - {claim.status}; {claim.claim_class}."
+                )
+            subject_lines.append("")
+            _atomic_text(
+                relationships_root / subject_path / "index.md",
+                "\n".join(subject_lines),
+            )
+        if not by_subject:
+            relationship_lines.append("No relationship memories are retained.")
+        relationship_lines.append("")
+        _atomic_text(relationships_root / "index.md", "\n".join(relationship_lines))
+
     def _validate_import_versions(
         self,
         alias: AliasRecord,
         personas: tuple[PersonaVersion, ...],
         profiles: tuple[RuntimeProfileVersion, ...],
+        memories: tuple[MemoryClaim, ...],
     ) -> None:
         if not personas or not profiles:
             raise SimoDataError("alias export requires persona and runtime profile versions")
@@ -1105,6 +1559,26 @@ class SimoStore:
             raise SimoDataError("active persona version is missing")
         if alias.active_runtime_profile_version not in {item.version for item in profiles}:
             raise SimoDataError("active runtime profile version is missing")
+        if any(item.owner_alias_id != alias.alias_id for item in memories):
+            raise SimoDataError("alias export contains memory owned by another alias")
+        active_keys = [
+            (item.subject_id, item.claim_key) for item in memories if item.status == "active"
+        ]
+        if len(active_keys) != len(set(active_keys)):
+            raise SimoDataError("alias export contains duplicate active memory keys")
+        for item in memories:
+            _validate_uuid(item.claim_id, "memory claim ID")
+            path = PurePosixPath(item.materialized_path)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or path.parts[:2]
+                != (
+                    "knowledge",
+                    "relationships",
+                )
+            ):
+                raise SimoDataError("memory materialized path is outside alias relationships")
 
     def _insert_import(
         self,
@@ -1112,6 +1586,7 @@ class SimoStore:
         alias: AliasRecord,
         personas: tuple[PersonaVersion, ...],
         profiles: tuple[RuntimeProfileVersion, ...],
+        memories: tuple[MemoryClaim, ...],
     ) -> None:
         connection.execute(
             """
@@ -1167,6 +1642,8 @@ class SimoStore:
                 for item in profiles
             ],
         )
+        for memory in memories:
+            self._insert_memory_claim(connection, memory, preserve_live_sources=False)
 
 
 def _mapping_row_factory(
@@ -1254,6 +1731,41 @@ def _event_from_row(row: Mapping[str, object]) -> ConversationEvent:
     )
 
 
+def _memory_claim_from_row(row: Mapping[str, object]) -> MemoryClaim:
+    confidence = row.get("confidence")
+    if not isinstance(confidence, int | float):
+        raise TypeError("memory claim confidence must be numeric")
+    return MemoryClaim(
+        _required_str(row, "claim_id"),
+        _required_str(row, "owner_alias_id"),
+        _required_str(row, "subject_id"),
+        _optional_str(row, "subject_alias_id"),
+        _required_str(row, "claim_key"),
+        _required_str(row, "claim_class"),
+        _required_str(row, "content"),
+        _optional_str(row, "source_conversation_id"),
+        _optional_str(row, "source_event_id"),
+        _json_object(_required_str(row, "provenance_json")),
+        float(confidence),
+        _required_str(row, "sensitivity"),
+        _required_str(row, "status"),
+        _optional_str(row, "supersedes_claim_id"),
+        _optional_str(row, "contradicts_claim_id"),
+        _required_str(row, "created_at"),
+        _required_str(row, "updated_at"),
+        _optional_str(row, "stale_after"),
+        _required_str(row, "materialized_path"),
+    )
+
+
+def _memory_subject_directory(subject_id: str) -> str:
+    return f"subject-{hashlib.sha256(subject_id.encode('utf-8')).hexdigest()[:16]}"
+
+
+def _memory_materialized_path(subject_id: str, claim_id: str) -> str:
+    return f"knowledge/relationships/{_memory_subject_directory(subject_id)}/claims/{claim_id}.md"
+
+
 def _alias_from_mapping(value: Mapping[str, object]) -> AliasRecord:
     return AliasRecord(
         _required_str(value, "alias_id"),
@@ -1286,6 +1798,33 @@ def _profile_from_mapping(value: Mapping[str, object]) -> RuntimeProfileVersion:
         dict(_required_object(value, "profile")),
         _optional_int(value, "parent_version"),
         _required_str(value, "source"),
+    )
+
+
+def _memory_claim_from_mapping(value: Mapping[str, object]) -> MemoryClaim:
+    confidence = value.get("confidence")
+    if not isinstance(confidence, int | float):
+        raise SimoDataError("memory claim confidence must be numeric")
+    return MemoryClaim(
+        _required_str(value, "claim_id"),
+        _required_str(value, "owner_alias_id"),
+        _required_str(value, "subject_id"),
+        _optional_str(value, "subject_alias_id"),
+        _required_str(value, "claim_key"),
+        _required_str(value, "claim_class"),
+        _required_str(value, "content"),
+        _optional_str(value, "source_conversation_id"),
+        _optional_str(value, "source_event_id"),
+        _required_object(value, "provenance"),
+        float(confidence),
+        _required_str(value, "sensitivity"),
+        _required_str(value, "status"),
+        _optional_str(value, "supersedes_claim_id"),
+        _optional_str(value, "contradicts_claim_id"),
+        _required_str(value, "created_at"),
+        _required_str(value, "updated_at"),
+        _optional_str(value, "stale_after"),
+        _required_str(value, "materialized_path"),
     )
 
 
@@ -1499,17 +2038,23 @@ CREATE TABLE IF NOT EXISTS conversation_events (
 CREATE TABLE IF NOT EXISTS memory_claims (
     claim_id TEXT PRIMARY KEY,
     owner_alias_id TEXT NOT NULL REFERENCES aliases(alias_id) ON DELETE CASCADE,
+    subject_id TEXT NOT NULL,
     subject_alias_id TEXT REFERENCES aliases(alias_id) ON DELETE SET NULL,
+    claim_key TEXT NOT NULL,
+    claim_class TEXT NOT NULL,
     content TEXT NOT NULL,
     source_conversation_id TEXT REFERENCES conversations(conversation_id) ON DELETE CASCADE,
     source_event_id TEXT REFERENCES conversation_events(event_id) ON DELETE CASCADE,
+    provenance_json TEXT NOT NULL,
     confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
     sensitivity TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('active', 'superseded', 'forgotten', 'rejected')),
     supersedes_claim_id TEXT REFERENCES memory_claims(claim_id) ON DELETE SET NULL,
+    contradicts_claim_id TEXT REFERENCES memory_claims(claim_id) ON DELETE SET NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    stale_after TEXT
+    stale_after TEXT,
+    materialized_path TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS experiment_profiles (
@@ -1555,5 +2100,20 @@ CREATE TABLE IF NOT EXISTS promotions (
 CREATE INDEX IF NOT EXISTS idx_participants_alias ON participants(alias_id, conversation_id);
 CREATE INDEX IF NOT EXISTS idx_events_conversation ON conversation_events(conversation_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_claims_owner_status ON memory_claims(owner_alias_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_active_key
+    ON memory_claims(owner_alias_id, subject_id, claim_key) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS idx_runs_profile ON experiment_runs(profile_id, held_out, status);
+"""
+
+_MIGRATE_V1_TO_V2_SQL = """
+ALTER TABLE memory_claims ADD COLUMN subject_id TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE memory_claims ADD COLUMN claim_key TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE memory_claims ADD COLUMN claim_class TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE memory_claims ADD COLUMN provenance_json TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE memory_claims ADD COLUMN contradicts_claim_id TEXT REFERENCES memory_claims(claim_id) ON DELETE SET NULL;
+ALTER TABLE memory_claims ADD COLUMN materialized_path TEXT NOT NULL DEFAULT 'knowledge/relationships/legacy/index.md';
+UPDATE memory_claims
+SET subject_id = COALESCE(subject_alias_id, 'legacy:' || claim_id),
+    claim_key = 'legacy:' || claim_id,
+    materialized_path = 'knowledge/relationships/legacy/claims/' || claim_id || '.md';
 """

@@ -64,7 +64,18 @@ uv run simo conversation export <conversation-id> ./conversation.json
 
 Every persisted `(alias, conversation)` run creates a separate native Flecs world. Its conversation and participants are graph entities carrying stable alias, conversation, participant, and optional transport-participant identities. Pipecat inference receives a bounded immutable snapshot containing those values and recent context; native entity IDs, handles, database connections, and mutable storage objects are never serialized across that boundary. Unknown transcript speakers fail closed for scoped worlds.
 
-This deterministic persisted path opens no audio device and loads no model. It proves ordered recording, review, export, restart reconstruction, and isolated scoped Flecs projections; relationship learning, live-model transcript wiring, and WebRTC rooms remain later milestones in `W-20260802-conversational-identities`.
+This deterministic persisted path opens no audio device and loads no model. It proves ordered recording, review, export, restart reconstruction, and isolated scoped Flecs projections; live-model transcript wiring and WebRTC rooms remain later milestones in `W-20260802-conversational-identities`.
+
+Allow-listed first-person statements such as “My name is …”, “I like …”, “My favorite … is …”, “My goal is …”, and “I will …” are promoted into the speaking alias's private relationship memory. Each claim retains participant, conversation, event, confidence, freshness, correction, and lifecycle provenance in SQLite and a portable OKF concept. Corrections supersede prior claims without rewriting history. Credential, permission, policy, and unmatched classes fail closed and never enter alias knowledge.
+
+```sh
+uv run simo memory list --alias <alias-id> --status active --json
+uv run simo memory show <claim-id>
+uv run simo memory correct <claim-id> "Corrected relationship fact."
+uv run simo memory forget <claim-id> --yes
+```
+
+Memory writes are serialized per alias across local processes. Forgetting physically removes the selected claim and its materialized content. Deleting a conversation also deletes claims derived from its events and regenerates each affected alias bundle. Alias export/import carries retained claims and provenance but does not import conversation history or create access to another alias's storage.
 
 ## Preflight
 

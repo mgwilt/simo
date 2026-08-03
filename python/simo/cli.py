@@ -116,6 +116,29 @@ def build_parser() -> argparse.ArgumentParser:
     conversation_delete.add_argument("--yes", action="store_true")
     conversation_delete.add_argument("--json", action="store_true", dest="as_json")
 
+    memory = subcommands.add_parser("memory", help="inspect and govern private learned claims")
+    memory_commands = memory.add_subparsers(dest="memory_command", required=True)
+    memory_list = memory_commands.add_parser("list", help="list an alias's retained claims")
+    memory_list.add_argument("--alias", required=True, dest="alias_id")
+    memory_list.add_argument("--subject", dest="subject_id")
+    memory_list.add_argument("--status", choices=("active", "superseded", "rejected"))
+    memory_list.add_argument("--json", action="store_true", dest="as_json")
+    memory_show = memory_commands.add_parser("show", help="show a learned claim and provenance")
+    memory_show.add_argument("claim_id")
+    memory_show.add_argument("--json", action="store_true", dest="as_json")
+    memory_correct = memory_commands.add_parser(
+        "correct", help="supersede an active claim with an operator correction"
+    )
+    memory_correct.add_argument("claim_id")
+    memory_correct.add_argument("content")
+    memory_correct.add_argument("--json", action="store_true", dest="as_json")
+    memory_forget = memory_commands.add_parser(
+        "forget", help="permanently remove a claim and its materialized content"
+    )
+    memory_forget.add_argument("claim_id")
+    memory_forget.add_argument("--yes", action="store_true")
+    memory_forget.add_argument("--json", action="store_true", dest="as_json")
+
     talk = subcommands.add_parser(
         "talk", help="run and persist synthetic turns through Pipecat and Flecs"
     )
@@ -168,7 +191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     command: str = args.command  # pyright: ignore[reportAny]
     try:
-        if command in {"alias", "conversation"}:
+        if command in {"alias", "conversation", "memory"}:
             return _run_data_command(args)
         requested_mode = (
             RunMode.MODELS
@@ -268,6 +291,8 @@ def _run_data_command(args: argparse.Namespace) -> int:
         return _run_alias_command(store, args)
     if command == "conversation":
         return _run_conversation_command(store, args)
+    if command == "memory":
+        return _run_memory_command(store, args)
     raise AssertionError(f"unhandled data command: {command}")
 
 
@@ -364,6 +389,36 @@ def _run_conversation_command(store: SimoStore, args: argparse.Namespace) -> int
         _print_structured({"conversation_id": conversation_id, "deleted": True}, as_json)
         return 0
     raise AssertionError(f"unhandled conversation command: {command}")
+
+
+def _run_memory_command(store: SimoStore, args: argparse.Namespace) -> int:
+    command = _arg_str(args, "memory_command")
+    as_json = _arg_bool(args, "as_json")
+    if command == "list":
+        claims = store.list_memory_claims(
+            _arg_str(args, "alias_id"),
+            subject_id=_arg_optional_str(args, "subject_id"),
+            status=_arg_optional_str(args, "status"),
+        )
+        _print_structured([claim.as_dict() for claim in claims], as_json)
+        return 0
+    if command == "show":
+        _print_structured(store.get_memory_claim(_arg_str(args, "claim_id")).as_dict(), as_json)
+        return 0
+    if command == "correct":
+        claim = store.correct_memory_claim(
+            _arg_str(args, "claim_id"),
+            _arg_str(args, "content"),
+        )
+        _print_structured(claim.as_dict(), as_json)
+        return 0
+    if command == "forget":
+        if not _arg_bool(args, "yes"):
+            raise ValueError("memory forget requires --yes")
+        claim = store.forget_memory_claim(_arg_str(args, "claim_id"))
+        _print_structured({"claim_id": claim.claim_id, "forgotten": True}, as_json)
+        return 0
+    raise AssertionError(f"unhandled memory command: {command}")
 
 
 def _load_json_file(path: Path) -> dict[str, object]:

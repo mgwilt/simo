@@ -11,6 +11,7 @@ from simo.adapters.pipecat.deterministic import run_deterministic_pipeline
 from simo.config import RuntimeConfig
 from simo.context import ContextParticipant, ConversationContextScope, NativeContextEngine
 from simo.knowledge import refresh_knowledge_graph
+from simo.memory import SafeMemoryLearner
 from simo.persistence import (
     ConversationEventType,
     SimoDataError,
@@ -88,6 +89,7 @@ class PersistedConversationRuntime:
             ),
         )
         transcript_before = self._store.transcript(selected_conversation_id)
+        learner = SafeMemoryLearner(self._store)
 
         with NativeContextEngine(
             queue_capacity=self._config.queue_capacity,
@@ -101,13 +103,14 @@ class PersistedConversationRuntime:
                 engine.tick()
 
             for user_text in selected:
-                self._store.append_event(
+                user_event = self._store.append_event(
                     selected_conversation_id,
                     ConversationEventType.USER_TRANSCRIPT_FINAL,
                     participant_id=human.participant_id,
                     text=user_text,
                     metadata={"source": "synthetic-cli"},
                 )
+                learner.learn_event(alias_id, human.participant_id, user_event)
                 result = await run_deterministic_pipeline(
                     engine,
                     [user_text],

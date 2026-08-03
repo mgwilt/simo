@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import unittest
 import zipfile
+from contextlib import closing
 from pathlib import Path
 from typing import cast
 
@@ -20,6 +22,59 @@ from simo.persistence import (
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_schema_one_store_migrates_memory_contract_to_schema_two(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            root.mkdir()
+            database = root / "simo.sqlite3"
+            with closing(sqlite3.connect(database)) as connection:
+                connection.executescript(
+                    """
+                    PRAGMA user_version = 1;
+                    CREATE TABLE memory_claims (
+                        claim_id TEXT PRIMARY KEY,
+                        owner_alias_id TEXT NOT NULL,
+                        subject_alias_id TEXT,
+                        content TEXT NOT NULL,
+                        source_conversation_id TEXT,
+                        source_event_id TEXT,
+                        confidence REAL NOT NULL,
+                        sensitivity TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        supersedes_claim_id TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        stale_after TEXT
+                    );
+                    """
+                )
+
+            SimoStore(root)
+            with closing(sqlite3.connect(database)) as connection:
+                version = cast(
+                    tuple[int] | None,
+                    cast(object, connection.execute("PRAGMA user_version").fetchone()),
+                )
+                rows = cast(
+                    list[tuple[object, ...]],
+                    cast(
+                        object,
+                        connection.execute("PRAGMA table_info(memory_claims)").fetchall(),
+                    ),
+                )
+                columns = {cast(str, row[1]) for row in rows}
+            self.assertEqual((2,), version)
+            self.assertTrue(
+                {
+                    "subject_id",
+                    "claim_key",
+                    "claim_class",
+                    "provenance_json",
+                    "contradicts_claim_id",
+                    "materialized_path",
+                }.issubset(columns)
+            )
+
     def test_data_root_prefers_explicit_then_environment(self) -> None:
         explicit = Path("/tmp/simo-explicit")
         configured = Path("/tmp/simo-configured")

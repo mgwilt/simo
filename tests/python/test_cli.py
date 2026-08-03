@@ -17,6 +17,129 @@ from simo.doctor import DoctorReport
 
 
 class CliTests(unittest.TestCase):
+    def test_memory_commands_inspect_correct_and_forget_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data_dir = Path(temporary) / "data"
+            alias_output = io.StringIO()
+            with redirect_stdout(alias_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(data_dir),
+                            "alias",
+                            "create",
+                            "Ada",
+                            "--json",
+                        ]
+                    ),
+                )
+            alias = cast(dict[str, object], cast(object, json.loads(alias_output.getvalue())))
+            alias_id = cast(str, alias["alias_id"])
+
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(data_dir),
+                            "talk",
+                            "--alias",
+                            alias_id,
+                            "--turn",
+                            "I like tea.",
+                            "--json",
+                        ]
+                    ),
+                )
+
+            listed_output = io.StringIO()
+            with redirect_stdout(listed_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(data_dir),
+                            "memory",
+                            "list",
+                            "--alias",
+                            alias_id,
+                            "--status",
+                            "active",
+                            "--json",
+                        ]
+                    ),
+                )
+            claims = cast(list[object], cast(object, json.loads(listed_output.getvalue())))
+            claim = cast(dict[str, object], claims[0])
+            claim_id = cast(str, claim["claim_id"])
+            self.assertEqual("Likes tea.", claim["content"])
+
+            shown_output = io.StringIO()
+            with redirect_stdout(shown_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(data_dir),
+                            "memory",
+                            "show",
+                            claim_id,
+                            "--json",
+                        ]
+                    ),
+                )
+            shown = cast(dict[str, object], cast(object, json.loads(shown_output.getvalue())))
+            self.assertEqual(claim_id, shown["claim_id"])
+            self.assertIn("event_id", cast(dict[str, object], shown["provenance"]))
+
+            corrected_output = io.StringIO()
+            with redirect_stdout(corrected_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(data_dir),
+                            "memory",
+                            "correct",
+                            claim_id,
+                            "Likes green tea.",
+                            "--json",
+                        ]
+                    ),
+                )
+            corrected = cast(
+                dict[str, object], cast(object, json.loads(corrected_output.getvalue()))
+            )
+            corrected_id = cast(str, corrected["claim_id"])
+            self.assertEqual(claim_id, corrected["supersedes_claim_id"])
+
+            forgotten_output = io.StringIO()
+            with redirect_stdout(forgotten_output):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "--data-dir",
+                            str(data_dir),
+                            "memory",
+                            "forget",
+                            corrected_id,
+                            "--yes",
+                            "--json",
+                        ]
+                    ),
+                )
+            forgotten = cast(
+                dict[str, object], cast(object, json.loads(forgotten_output.getvalue()))
+            )
+            self.assertTrue(forgotten["forgotten"])
+
     def test_talk_resumes_and_exports_a_persisted_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
