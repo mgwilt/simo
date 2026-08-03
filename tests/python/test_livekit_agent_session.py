@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from collections.abc import AsyncIterator
+from typing import cast
 
 from livekit.agents import llm
 from livekit.plugins import silero
@@ -97,7 +98,10 @@ class LiveKitAgentSessionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("reply", response.text)
         self.assertIn("Simo semantic context (revision 4)", generator.prompts[0])
-        self.assertEqual("Be Ada: thoughtful and precise.", components.agent.instructions)
+        instructions = cast(str, components.agent.instructions)
+        self.assertTrue(instructions.startswith("Be Ada: thoughtful and precise."))
+        self.assertIn("no more than 35 words", instructions)
+        self.assertIn("Always finish the current sentence", instructions)
         self.assertEqual("vad", components.turn_handling.get("turn_detection"))
         self.assertEqual(
             0.6,

@@ -136,7 +136,7 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 if type(processor).__name__ == "LocalTextInferenceProcessor"
             ),
         )
-        self.assertEqual(48, text._max_tokens)
+        self.assertEqual(64, text._max_tokens)
         self.assertTrue(result.operations["clean_shutdown"])
         self.assertEqual("completed", result.operations["shutdown_reason"])
 

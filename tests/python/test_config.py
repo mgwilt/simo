@@ -28,7 +28,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.repository / ".models", config.models_dir)
         self.assertEqual(8_000, config.context_max_chars)
         self.assertEqual(1_000, config.context_max_age_ms)
-        self.assertEqual(48, config.text_max_tokens)
+        self.assertEqual(64, config.text_max_tokens)
         self.assertIsNone(config.audio_input_device_index)
         self.assertIsNone(config.audio_output_device_index)
         self.assertEqual(0.1, config.vad_confidence)

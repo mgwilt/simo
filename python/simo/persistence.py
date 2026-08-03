@@ -254,8 +254,11 @@ def default_runtime_profile() -> dict[str, object]:
             "pre_roll_ms": 200,
             "maximum_utterance_seconds": 30.0,
         },
-        "response": {"maximum_tokens": 48},
-        "prompt": "Hold a natural, concise, context-aware conversation.",
+        "response": {"maximum_tokens": 64},
+        "prompt": (
+            "Hold a natural, concise, context-aware conversation. Use one or two complete "
+            "sentences under 35 words, and always finish the current sentence."
+        ),
     }
 
 

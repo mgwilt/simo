@@ -164,6 +164,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="override the livekit-server executable",
     )
     livekit_probe.add_argument("--json", action="store_true", dest="as_json")
+    agent_lab = lab_commands.add_parser(
+        "converse",
+        help="run two persisted aliases through the LiveKit Agents audio path",
+    )
+    agent_lab.add_argument("--server-binary", help="override the livekit-server executable")
+    agent_lab.add_argument("--artifacts-dir", type=Path)
+    agent_lab.add_argument("--turns-per-alias", type=int, default=2)
+    agent_lab.add_argument("--max-duration-s", type=float, default=180.0)
+    agent_lab.add_argument("--json", action="store_true", dest="as_json")
 
     doctor = subcommands.add_parser("doctor", help="inspect runtime prerequisites")
     doctor.add_argument("--mode", choices=tuple(RunMode), default=RunMode.HEADLESS)
@@ -306,6 +315,19 @@ def _run_lab_command(args: argparse.Namespace) -> int:
         result = asyncio.run(
             run_two_process_probe(
                 server_binary=_arg_optional_str(args, "server_binary"),
+            )
+        )
+        _print_structured(result.as_dict(), _arg_bool(args, "as_json"))
+        return 0
+    if command == "converse":
+        from simo.livekit_agent_lab import run_two_agent_lab
+
+        result = asyncio.run(
+            run_two_agent_lab(
+                artifacts_dir=_arg_optional_path(args, "artifacts_dir"),
+                server_binary=_arg_optional_str(args, "server_binary"),
+                turns_per_alias=_arg_int(args, "turns_per_alias"),
+                max_duration_s=_arg_float(args, "max_duration_s"),
             )
         )
         _print_structured(result.as_dict(), _arg_bool(args, "as_json"))
@@ -511,6 +533,20 @@ def _arg_bool(args: argparse.Namespace, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a boolean")
     return value
+
+
+def _arg_int(args: argparse.Namespace, name: str) -> int:
+    value = _arg_value(args, name)
+    if not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer")
+    return value
+
+
+def _arg_float(args: argparse.Namespace, name: str) -> float:
+    value = _arg_value(args, name)
+    if not isinstance(value, int | float):
+        raise TypeError(f"{name} must be numeric")
+    return float(value)
 
 
 def _arg_str_list(args: argparse.Namespace, name: str) -> list[str]:

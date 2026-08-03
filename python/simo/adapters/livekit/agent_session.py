@@ -70,6 +70,13 @@ class LiveKitAgentSessionComponents:
     room_options: room_io.RoomOptions
 
 
+_VOICE_TURN_CONTRACT = (
+    "Voice response contract: reply with one or two complete short sentences totaling no "
+    "more than 35 words. Always finish the current sentence. Do not use lists, headings, "
+    "stage directions, or preambles."
+)
+
+
 def build_livekit_agent_session(
     config: RuntimeConfig,
     engine: ContextSnapshotSource,
@@ -143,7 +150,7 @@ def build_livekit_agent_session(
         user_away_timeout=None,
     )
     agent = Agent(
-        instructions=persona_instructions,
+        instructions=f"{persona_instructions.strip()}\n\n{_VOICE_TURN_CONTRACT}",
         chat_ctx=chat_context or llm.ChatContext.empty(),
     )
     options = room_io.RoomOptions(
