@@ -4,7 +4,7 @@ title: Finish Simo decisions
 description: Records locked product boundaries and evidence-gated runtime choices.
 tags: [work, decisions, product, inference]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
 sources:
   - id: mlx-audio
     resource: https://github.com/Blaizzy/mlx-audio
@@ -78,6 +78,10 @@ Simo emits fixed-schema aggregate lifecycle, queue, error-count, and timing even
 ## D-010: Start local turn detection with a replaceable bounded energy gate
 
 The first macOS live path uses deterministic normalized-RMS start/stop detection with typed thresholds, pre-roll, and a maximum utterance duration. It emits Pipecat interruption frames but does not claim semantic turn detection, echo cancellation, speaker identity, or noise robustness. The boundary remains replaceable without changing STT, Flecs, or inference contracts.
+
+## D-011: Model installation is explicit, immutable, and fail-closed
+
+The selected repositories are pinned to full revisions and model setup prints a size and disk-space plan without downloading by default. A separate `--accept-download` flag authorizes the transfer. Doctor accepts a local model only after its required files exist and an atomic completion marker matches both the configured repository and revision. A partially downloaded, substituted, or subsequently reconfigured model therefore cannot make live preflight ready.
 
 [^mlx-audio]: MLX-Audio repository and examples, checked 2026-08-02: Apple Silicon speech generation and streaming interfaces.
 [^qwen-tts-mlx]: Qwen3-TTS 0.6B CustomVoice 6-bit MLX model card, checked 2026-08-02: MLX-Audio conversion, model size, license metadata, and built-in voices.

@@ -7,3 +7,4 @@
 - [E-005 — Qwen MLX TTS adapter](E-005-qwen-mlx-tts-adapter.md)
 - [E-006 — runtime operations](E-006-runtime-operations.md)
 - [E-007 — local macOS live pipeline](E-007-local-macos-live-pipeline.md)
+- [E-008 — model download checkpoint](E-008-model-download-checkpoint.md)

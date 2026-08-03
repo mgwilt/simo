@@ -4,8 +4,8 @@ title: Local macOS voice pipeline
 description: Defines Simo's implemented Pipecat local-audio topology, bounded utterance detection, interruption path, and resource lifecycle.
 tags: [architecture, macos, voice, pipecat, mlx, audio, interruption]
 status: stable
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
-verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
+verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
 sources:
   - id: pipecat-local-transport
     resource: ../../vendor/pipecat/src/pipecat/transports/local/audio.py
@@ -26,7 +26,7 @@ simo:
   profile_version: 1
   stable_id: DOC-0005
   authority: architecture
-  repository_paths: [pyproject.toml, uv.lock, python/simo/config.py, python/simo/doctor.py, python/simo/runtime.py, python/simo/adapters/pipecat, scripts/setup_live_data.py, tests/python]
+  repository_paths: [pyproject.toml, uv.lock, python/simo/config.py, python/simo/doctor.py, python/simo/runtime.py, python/simo/adapters/pipecat, scripts/setup_live_data.py, scripts/setup_models.py, tests/python]
   owner: unassigned
 ---
 # Local macOS voice pipeline
@@ -56,7 +56,9 @@ This energy detector is deterministic, small, and replaceable. It is not speaker
 
 ## Device and data preflight
 
-Live preflight checks Apple Silicon, the native core, all MLX modules, PyAudio, an available MLX Metal device, selected/default input and output devices with compatible channels, the NLTK sentence tokenizer, and all three model directories. Device indices and utterance thresholds are typed environment configuration. The small tokenizer installer verifies NLTK's published SHA-256, download and unpacked-size bounds, archive paths, and expected English data before writing ignored cache storage.[^nltk-data-index]
+Live preflight checks Apple Silicon, the native core, all MLX modules, PyAudio, an available MLX Metal device, selected/default input and output devices with compatible channels, the NLTK sentence tokenizer, and all three model repositories. Device indices, utterance thresholds, model IDs, and full model revisions are typed environment configuration. The small tokenizer installer verifies NLTK's published SHA-256, download and unpacked-size bounds, archive paths, and expected English data before writing ignored cache storage.[^nltk-data-index]
+
+Large model setup is plan-only unless the operator supplies `--accept-download`. It checks free space, downloads the configured immutable revisions, validates required files, and writes an atomic completion marker only after each repository is complete. Preflight requires that marker to match both model ID and revision, so a partial or stale repository remains fail-closed.
 
 ## Lifecycle
 

@@ -4,7 +4,7 @@ title: Finish Simo verification
 description: Records proportional checks for the complete realtime-agent product.
 tags: [work, verification, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:35:05Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T01:44:19Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-VERIFICATION
@@ -22,4 +22,5 @@ simo:
 - `E-005` records partial `A-004` and `A-007` evidence at `f07a5e5`: fake-backend Qwen streaming crosses a bounded worker queue into validated mono PCM Pipecat frames; consumer close cooperatively stops generation between chunks and backend failures become bounded error frames.
 - `E-006` records partial `A-009` and `A-010` evidence at `e5a6f6a`: the headless owner and selected live inference adapters share a pure fixed-schema JSONL stream and aggregate metrics; normal and cancelled lifecycles clean up; terminal interrupt returns status 130; privacy sentinel content is absent from operational events.
 - `E-007` records partial `A-004`, `A-008`, and `A-009` evidence at `7f390b1`: the local 16/24 kHz Pipecat topology executes worker setup/teardown with fake inference; energy turn detection emits interruption and bounded utterance frames; PortAudio ownership is explicit; outside-sandbox preflight sees MLX Metal and the actual default Mac audio devices.
+- `E-008` records the model-download checkpoint at `3be0e37`: the installer is plan-only without explicit acceptance, resolves three immutable repository revisions totaling 6.90 GiB, reserves 10.62 GiB, verifies required files before writing atomic completion markers, and keeps doctor closed for incomplete or mismatched models.
 - Model-weight execution, microphone capture, speaker playback, cancellation during a Metal kernel, live latency, and live operational readiness remain unverified. `A-006`, `A-007`, `A-008`, and `A-009` remain open pending live execution; `A-004` remains open until real playback interruption is observed.

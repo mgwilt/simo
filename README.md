@@ -38,6 +38,20 @@ uv run --extra inference simo doctor --mode live
 
 The live-data setup downloads only NLTK's checksum-pinned 4.3 MB `punkt_tab` tokenizer into ignored `.cache/` storage. Live preflight also verifies MLX Metal and the selected/default PortAudio input and output devices. It remains not ready until all three model repositories exist under `.models/`.
 
+Preview the pinned model plan without downloading anything:
+
+```sh
+uv run python scripts/setup_models.py
+```
+
+The default plan is a 6.90 GiB transfer and requires at least 10.62 GiB free for downloads plus temporary overhead. After explicitly accepting that large download, install all three immutable revisions with:
+
+```sh
+uv run python scripts/setup_models.py --accept-download
+```
+
+The installer downloads only the declared repositories, verifies their required files, and writes a local revision marker after each model is complete. Live preflight rejects partial repositories and markers that do not match the configured model ID and revision.
+
 After the model-download checkpoint and successful live preflight, start the local agent with headphones to reduce speaker-to-microphone feedback:
 
 ```sh
@@ -65,10 +79,13 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_VAD_PRE_ROLL_MS` | `200` |
 | `SIMO_MAX_UTTERANCE_S` | `30` |
 | `SIMO_TTS_MODEL` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` |
+| `SIMO_TTS_REVISION` | `7dc92af14613355896fcab13b268c19ede233139` |
 | `SIMO_TTS_VOICE` | `Aiden` |
 | `SIMO_TTS_STREAMING_INTERVAL_S` | `0.32` |
 | `SIMO_STT_MODEL` | `mlx-community/parakeet-tdt-0.6b-v3` |
+| `SIMO_STT_REVISION` | `ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15` |
 | `SIMO_TEXT_MODEL` | `mlx-community/Qwen3.5-4B-4bit` |
+| `SIMO_TEXT_REVISION` | `0e7ffd5c629ef7719d4cbc04069232580bfa9d9c` |
 
 Runtime configuration, model weights, generated audio, and local caches are ignored by Git. Simo does not log or persist raw audio or transcripts by default; the current headless JSON output intentionally contains the synthetic transcripts supplied on its command line.
 
