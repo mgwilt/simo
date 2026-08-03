@@ -6,6 +6,7 @@ import json
 import os
 import unittest
 from pathlib import Path
+from typing import cast
 
 os.environ.setdefault(
     "NLTK_DATA",
@@ -15,6 +16,7 @@ os.environ.setdefault(
 from pipecat.frames.frames import EndFrame, Frame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.workers.runner import WorkerRunner
+from simo.adapters.pipecat.inference import LocalTextInferenceProcessor
 from simo.config import RunMode, RuntimeConfig
 from simo.operations import JsonEventSink
 from simo.runtime import LiveRuntime
@@ -125,6 +127,16 @@ class LiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(0.1, segmenter._analyzer.params.confidence)
         self.assertEqual(0.0, segmenter._analyzer.params.min_volume)
+        processors = cast("list[object]", user_pipeline.processors)
+        text = cast(
+            "LocalTextInferenceProcessor",
+            next(
+                processor
+                for processor in processors
+                if type(processor).__name__ == "LocalTextInferenceProcessor"
+            ),
+        )
+        self.assertEqual(48, text._max_tokens)
         self.assertTrue(result.operations["clean_shutdown"])
         self.assertEqual("completed", result.operations["shutdown_reason"])
 

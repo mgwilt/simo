@@ -40,7 +40,8 @@ class ModelProofTests(unittest.TestCase):
         config = RuntimeConfig.from_environment({}, mode=RunMode.LIVE)
         with tempfile.TemporaryDirectory() as directory:
             vad = {
-                "speech_utterances": 1,
+                "speech_utterances": 3,
+                "interruption_signals": 3,
                 "playback_echo_turns": 0,
                 "playback_suppressed_chunks": 50,
                 "confidence": {"frames": 50, "mean_confidence": 0.5},
@@ -67,8 +68,8 @@ class ModelProofTests(unittest.TestCase):
             self.assertEqual("SIMO TEXT READY", result["text"]["response"])
             self.assertEqual("The blue door is open.", result["stt"]["transcript"])
             self.assertEqual(vad, result["vad"])
-            self.assertEqual(1, result["pipeline"]["context_injections"])
-            self.assertGreaterEqual(result["pipeline"]["audio_frames"], 1)
+            self.assertEqual(3, result["pipeline"]["context_injections"])
+            self.assertGreaterEqual(result["pipeline"]["audio_frames"], 3)
             self.assertGreater(result["pipeline"]["tts_audio_bytes"], 0)
 
     def test_resample_pcm_preserves_duration_and_bounds(self) -> None:

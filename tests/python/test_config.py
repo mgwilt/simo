@@ -28,6 +28,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.repository / ".models", config.models_dir)
         self.assertEqual(8_000, config.context_max_chars)
         self.assertEqual(1_000, config.context_max_age_ms)
+        self.assertEqual(48, config.text_max_tokens)
         self.assertIsNone(config.audio_input_device_index)
         self.assertIsNone(config.audio_output_device_index)
         self.assertEqual(0.1, config.vad_confidence)
@@ -37,7 +38,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(200, config.vad_pre_roll_ms)
         self.assertEqual(30.0, config.max_utterance_s)
         self.assertEqual("Aiden", config.tts_voice)
-        self.assertEqual(0.32, config.tts_streaming_interval_s)
+        self.assertEqual(0.24, config.tts_streaming_interval_s)
 
     def test_environment_overrides_are_typed_once(self) -> None:
         config = RuntimeConfig.from_environment(
@@ -49,6 +50,7 @@ class RuntimeConfigTests(unittest.TestCase):
                 "SIMO_MAX_SEGMENTS": "7",
                 "SIMO_CONTEXT_MAX_CHARS": "500",
                 "SIMO_CONTEXT_MAX_AGE_MS": "250",
+                "SIMO_TEXT_MAX_TOKENS": "32",
                 "SIMO_TTS_MODEL": "example/tts",
                 "SIMO_TTS_REVISION": "revision-1",
                 "SIMO_TTS_VOICE": "Ryan",
@@ -68,6 +70,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(7, config.max_segments)
         self.assertEqual(500, config.context_max_chars)
         self.assertEqual(250, config.context_max_age_ms)
+        self.assertEqual(32, config.text_max_tokens)
         self.assertEqual(Path("/tmp/libsimo-test.dylib"), config.core_library)
         self.assertEqual(Path("/tmp/simo-test-models/tts"), config.tts.local_path)
         self.assertEqual("revision-1", config.tts.revision)

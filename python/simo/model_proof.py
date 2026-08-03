@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 TEXT_PROOF_RESPONSE = "SIMO TEXT READY"
 SPEECH_PROOF_PHRASE = "The blue door is open."
+SYNTHETIC_PROOF_TURNS = 3
 
 
 async def prove_models(
@@ -178,28 +179,37 @@ async def prove_synthetic_vad(
                 _input_audio_frame(silence, sample_rate=16_000),
                 FrameDirection.DOWNSTREAM,
             )
-        for chunk in _pcm_chunks(speech_pcm_s16le, frames_per_chunk=320):
-            await segmenter.process_frame(
-                _input_audio_frame(chunk, sample_rate=16_000),
-                FrameDirection.DOWNSTREAM,
-            )
-        for _ in range(30):
-            await segmenter.process_frame(
-                _input_audio_frame(silence, sample_rate=16_000),
-                FrameDirection.DOWNSTREAM,
-            )
+        for _turn in range(SYNTHETIC_PROOF_TURNS):
+            for chunk in _pcm_chunks(speech_pcm_s16le, frames_per_chunk=320):
+                await segmenter.process_frame(
+                    _input_audio_frame(chunk, sample_rate=16_000),
+                    FrameDirection.DOWNSTREAM,
+                )
+            for _ in range(30):
+                await segmenter.process_frame(
+                    _input_audio_frame(silence, sample_rate=16_000),
+                    FrameDirection.DOWNSTREAM,
+                )
         await segmenter.process_frame(EndFrame(), FrameDirection.DOWNSTREAM)
 
         utterances = sum(isinstance(frame, PCMUtteranceFrame) for frame in emitted)
-        if utterances != 1:
+        if utterances != SYNTHETIC_PROOF_TURNS:
             raise RuntimeError(
-                f"synthetic Silero proof expected one utterance, observed {utterances}"
+                "synthetic Silero proof expected "
+                f"{SYNTHETIC_PROOF_TURNS} utterances, observed {utterances}"
             )
 
-        starts_before_echo = cast(
+        activity_before_echo = cast(
             "dict[str, int]",
             metrics.snapshot()["audio_activity"],
-        )["utterances_started"]
+        )
+        starts_before_echo = activity_before_echo["utterances_started"]
+        interruptions = activity_before_echo["interruption_signals"]
+        if interruptions != SYNTHETIC_PROOF_TURNS:
+            raise RuntimeError(
+                "synthetic Silero proof expected "
+                f"{SYNTHETIC_PROOF_TURNS} interruptions, observed {interruptions}"
+            )
         playback_state.begin_context()
         playback_state.reserve(len(playback_pcm_s16le) / 2 / 24_000)
         echo_chunks = 0
@@ -222,6 +232,7 @@ async def prove_synthetic_vad(
             )
         return {
             "speech_utterances": utterances,
+            "interruption_signals": interruptions,
             "playback_echo_turns": echo_turns,
             "playback_suppressed_chunks": suppressed,
             "confidence": cast("dict[str, int | float]", snapshot["vad_analysis"]),
@@ -338,8 +349,11 @@ async def prove_real_model_pipeline(
                     audio=pcm_s16le,
                     sample_rate=16_000,
                     user_id="synthetic-proof",
-                    timestamp="synthetic-proof-turn",
-                ),
+                    timestamp=f"synthetic-proof-turn-{turn}",
+                )
+                for turn in range(SYNTHETIC_PROOF_TURNS)
+            ]
+            + [
                 EndFrame(),
             ]
         )
@@ -355,7 +369,13 @@ async def prove_real_model_pipeline(
             "text_frames": sum(isinstance(frame, LLMTextFrame) for frame in frames),
             "audio_frames": sum(isinstance(frame, TTSAudioRawFrame) for frame in frames),
         }
-        if any(count < 1 for count in counts.values()) or semantic.injection_count != 1:
+        if (
+            counts["transcriptions"] < SYNTHETIC_PROOF_TURNS
+            or counts["semantic_turns"] != SYNTHETIC_PROOF_TURNS
+            or counts["text_frames"] < SYNTHETIC_PROOF_TURNS
+            or counts["audio_frames"] < SYNTHETIC_PROOF_TURNS
+            or semantic.injection_count != SYNTHETIC_PROOF_TURNS
+        ):
             raise RuntimeError(
                 "real model pipeline did not complete one semantic turn: "
                 f"counts={counts}, injections={semantic.injection_count}, "
@@ -371,6 +391,7 @@ async def prove_real_model_pipeline(
 
     return {
         **counts,
+        "turns": SYNTHETIC_PROOF_TURNS,
         "tts_audio_bytes": audio_bytes,
         "context_injections": semantic.injection_count,
         "world_revision": int(snapshot["revision"]),

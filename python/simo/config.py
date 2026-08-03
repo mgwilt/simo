@@ -45,6 +45,7 @@ class RuntimeConfig:
     max_segments: int
     context_max_chars: int
     context_max_age_ms: int
+    text_max_tokens: int
     audio_input_device_index: int | None
     audio_output_device_index: int | None
     vad_confidence: float
@@ -75,6 +76,7 @@ class RuntimeConfig:
         max_segments = _positive_integer(values, "SIMO_MAX_SEGMENTS", 64)
         context_max_chars = _positive_integer(values, "SIMO_CONTEXT_MAX_CHARS", 8_000)
         context_max_age_ms = _positive_integer(values, "SIMO_CONTEXT_MAX_AGE_MS", 1_000)
+        text_max_tokens = _positive_integer(values, "SIMO_TEXT_MAX_TOKENS", 48)
         audio_input_device_index = _optional_nonnegative_integer(
             values,
             "SIMO_AUDIO_INPUT_DEVICE_INDEX",
@@ -99,7 +101,7 @@ class RuntimeConfig:
         tts_streaming_interval_s = _positive_float(
             values,
             "SIMO_TTS_STREAMING_INTERVAL_S",
-            0.32,
+            0.24,
         )
 
         def model(
@@ -132,6 +134,7 @@ class RuntimeConfig:
             max_segments=max_segments,
             context_max_chars=context_max_chars,
             context_max_age_ms=context_max_age_ms,
+            text_max_tokens=text_max_tokens,
             audio_input_device_index=audio_input_device_index,
             audio_output_device_index=audio_output_device_index,
             vad_confidence=vad_confidence,

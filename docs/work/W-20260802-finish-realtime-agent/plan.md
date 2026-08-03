@@ -23,7 +23,7 @@ simo:
     depends_on: [W-20260802-semantic-context-spine]
     knowledge_refs: [architecture/semantic-context-spine, interfaces/gepard-tts, governance/DOC-0001-documentation-and-work-management]
     write_paths: [README.md, CMakeLists.txt, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
-    next_action: Reduce response latency and extend the unattended synthetic transport proof to three context-informed turns with interruption and bounded-drop assertions.
+    next_action: Add per-turn latency distributions and prove cancellation during in-flight MLX generation; keep p95 acceptance separate from the completed three-turn functional gate.
     blocker: null
 ---
 # Make the Simo macOS voice path reliable

@@ -249,6 +249,7 @@ class LiveRuntime:
                 )
                 text = LocalTextInferenceProcessor(
                     self._generator_factory(self._config),
+                    max_tokens=self._config.text_max_tokens,
                     metrics=metrics,
                 )
                 tts = QwenMLXTTSService(
