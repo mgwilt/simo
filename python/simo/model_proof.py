@@ -70,7 +70,7 @@ async def prove_models(
         raise RuntimeError("STT warm proof did not reproduce the synthetic phrase")
 
     duration_s = len(cold_audio) / 2 / 24_000
-    return {
+    result = {
         "schema_version": 1,
         "artifact": str(wav_path),
         "text": {
@@ -101,6 +101,154 @@ async def prove_models(
             "warm_realtime_factor": round(stt_warm_ms / (duration_s * 1_000), 3),
             "transcript": stt_warm,
         },
+    }
+    result["pipeline"] = await prove_real_model_pipeline(
+        config,
+        stt_pcm,
+        generator=generator,
+        synthesizer=synthesizer,
+        recognizer=recognizer,
+    )
+    return result
+
+
+async def prove_real_model_pipeline(
+    config: RuntimeConfig,
+    pcm_s16le: bytes,
+    *,
+    generator: TextGenerator,
+    synthesizer: SpeechSynthesizer,
+    recognizer: SpeechRecognizer,
+) -> dict[str, Any]:
+    """Execute real providers through Pipecat and one Flecs semantic turn."""
+
+    from pipecat.frames.frames import (
+        EndFrame,
+        ErrorFrame,
+        LLMTextFrame,
+        TTSAudioRawFrame,
+        TranscriptionFrame,
+    )
+    from pipecat.pipeline.pipeline import Pipeline
+    from pipecat.pipeline.worker import PipelineParams, PipelineWorker
+    from pipecat.utils.asyncio.task_manager import TaskManager
+    from pipecat.workers.base_worker import WorkerParams
+
+    from simo.adapters.pipecat.deterministic import FrameCollector
+    from simo.adapters.pipecat.inference import (
+        LocalSTTProcessor,
+        LocalTextInferenceProcessor,
+        PCMUtteranceFrame,
+    )
+    from simo.adapters.pipecat.observer import PipecatSemanticObserver
+    from simo.adapters.pipecat.qwen_tts import QwenMLXTTSService
+    from simo.adapters.pipecat.semantic_turn import SemanticTurnProcessor
+    from simo.context import NativeContextEngine
+    from simo.knowledge import refresh_knowledge_graph
+    from simo.observation import (
+        BoundedTranscriptMailbox,
+        FinalTranscriptObservationBridge,
+    )
+    from simo.operations import RuntimeMetrics
+
+    metrics = RuntimeMetrics()
+    with NativeContextEngine(
+        queue_capacity=config.queue_capacity,
+        max_segments=config.max_segments,
+        library_path=config.core_library,
+    ) as engine:
+        knowledge = refresh_knowledge_graph(engine, config.repository)
+        mailbox = BoundedTranscriptMailbox(capacity=config.queue_capacity)
+        bridge = FinalTranscriptObservationBridge(mailbox)
+        semantic = SemanticTurnProcessor(
+            engine,
+            bridge,
+            mailbox,
+            max_prompt_chars=config.context_max_chars,
+        )
+        semantic_collector = FrameCollector()
+        audio_collector = FrameCollector()
+        pipeline = Pipeline(
+            [
+                LocalSTTProcessor(recognizer, metrics=metrics),
+                semantic,
+                LocalTextInferenceProcessor(generator, max_tokens=48, metrics=metrics),
+                semantic_collector,
+                QwenMLXTTSService(
+                    synthesizer,
+                    metrics=metrics,
+                    model=config.tts.model_id,
+                    voice=config.tts_voice,
+                    sample_rate=24_000,
+                ),
+                audio_collector,
+            ]
+        )
+        worker = PipelineWorker(
+            pipeline,
+            params=PipelineParams(
+                audio_in_sample_rate=16_000,
+                audio_out_sample_rate=24_000,
+            ),
+            observers=[PipecatSemanticObserver(bridge=bridge)],
+            enable_rtvi=False,
+            enable_turn_tracking=False,
+            idle_timeout_secs=None,
+        )
+        await worker.queue_frames(
+            [
+                PCMUtteranceFrame(
+                    audio=pcm_s16le,
+                    sample_rate=16_000,
+                    user_id="synthetic-proof",
+                    timestamp="synthetic-proof-turn",
+                ),
+                EndFrame(),
+            ]
+        )
+        await worker.run(WorkerParams(task_manager=TaskManager()))
+
+        frames = (*semantic_collector.frames, *audio_collector.frames)
+        errors = [frame for frame in frames if isinstance(frame, ErrorFrame)]
+        if errors:
+            raise RuntimeError(
+                f"real model pipeline emitted {len(errors)} error frame(s)"
+            )
+        counts = {
+            "transcriptions": sum(
+                isinstance(frame, TranscriptionFrame) for frame in frames
+            ),
+            "semantic_turns": semantic.injection_count,
+            "text_frames": sum(isinstance(frame, LLMTextFrame) for frame in frames),
+            "audio_frames": sum(
+                isinstance(frame, TTSAudioRawFrame) for frame in frames
+            ),
+        }
+        if any(count < 1 for count in counts.values()) or semantic.injection_count != 1:
+            raise RuntimeError(
+                "real model pipeline did not complete one semantic turn: "
+                f"counts={counts}, injections={semantic.injection_count}, "
+                f"semantic_frames={[type(frame).__name__ for frame in semantic_collector.frames]}, "
+                f"audio_frames={[type(frame).__name__ for frame in audio_collector.frames]}"
+            )
+        audio_bytes = sum(
+            len(frame.audio) for frame in frames if isinstance(frame, TTSAudioRawFrame)
+        )
+        snapshot = engine.snapshot()
+        observer = bridge.stats()
+        mailbox_stats = mailbox.stats()
+
+    return {
+        **counts,
+        "tts_audio_bytes": audio_bytes,
+        "context_injections": semantic.injection_count,
+        "world_revision": int(snapshot["revision"]),
+        "knowledge_concepts": knowledge.concepts,
+        "knowledge_links": knowledge.links,
+        "observer_accepted": observer.accepted,
+        "observer_duplicates": observer.duplicate,
+        "observer_mailbox_dropped": mailbox_stats.dropped,
+        "metrics": metrics.snapshot()["stages"],
     }
 
 

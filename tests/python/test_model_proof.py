@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import tempfile
 import unittest
 import wave
 from pathlib import Path
 
 import numpy as np
+
+os.environ.setdefault(
+    "NLTK_DATA",
+    str(Path(__file__).resolve().parents[1] / "fixtures/nltk_data"),
+)
 
 from simo.config import RunMode, RuntimeConfig
 from simo.inference import AudioChunk
@@ -49,6 +55,9 @@ class ModelProofTests(unittest.TestCase):
                 self.assertEqual(24_000, artifact.getframerate())
             self.assertEqual("SIMO TEXT READY", result["text"]["response"])
             self.assertEqual("The blue door is open.", result["stt"]["transcript"])
+            self.assertEqual(1, result["pipeline"]["context_injections"])
+            self.assertGreaterEqual(result["pipeline"]["audio_frames"], 1)
+            self.assertGreater(result["pipeline"]["tts_audio_bytes"], 0)
 
     def test_resample_pcm_preserves_duration_and_bounds(self) -> None:
         samples = np.array([-32768, 0, 32767] * 8_000, dtype="<i2")

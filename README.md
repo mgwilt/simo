@@ -59,7 +59,7 @@ uv run simo prove-models
 uv run simo live
 ```
 
-`prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; and writes only an ignored synthetic `.artifacts/model-proof/tts.wav`. It does not open the microphone or speaker.
+`prove-models` loads each configured immutable revision through the same adapter used by the live pipeline. It records cold and warm text, synthesis, and transcription timings; requires an exact synthetic text response and round-trip speech transcript; and then executes real STT → Flecs context injection → real text → real TTS through Pipecat. It writes only an ignored synthetic `.artifacts/model-proof/tts.wav` and does not open the microphone or speaker.
 
 The live pipeline is local microphone → bounded energy utterance detection and Pipecat interruption → Parakeet STT → Flecs context/OKF projection → Qwen text inference → streaming Qwen TTS → local speaker. `Control-C` tears down Pipecat, PortAudio, and the native Flecs owner.
 
