@@ -36,7 +36,22 @@ SIMO_API simo_context_engine* simo_context_engine_create(
     size_t queue_capacity,
     size_t max_segments,
     simo_drop_policy drop_policy);
+SIMO_API simo_context_engine* simo_context_engine_create_scoped(
+    size_t queue_capacity,
+    size_t max_segments,
+    simo_drop_policy drop_policy,
+    const char* alias_id,
+    const char* conversation_id,
+    const char* local_participant_id);
 SIMO_API void simo_context_engine_destroy(simo_context_engine* engine);
+
+SIMO_API int simo_context_engine_upsert_participant(
+    simo_context_engine* engine,
+    const char* participant_id,
+    const char* kind,
+    const char* alias_id,
+    const char* display_name,
+    const char* transport_participant_id);
 
 /* Returns 1 when accepted, 0 when rejected by policy, and -1 for invalid input. */
 SIMO_API int simo_context_engine_enqueue_transcript(

@@ -11,7 +11,7 @@ from pipecat.frames.frames import LLMTextFrame, TTSAudioRawFrame
 
 from simo.adapters.pipecat.deterministic import run_deterministic_pipeline
 from simo.config import RuntimeConfig
-from simo.context import NativeContextEngine
+from simo.context import ConversationContextScope, NativeContextEngine
 from simo.knowledge import refresh_knowledge_graph
 from simo.operations import NullEventSink, OperationalEventSink, RuntimeMetrics
 
@@ -44,9 +44,11 @@ class HeadlessRuntime:
         metrics.transition("starting")
         self._events.lifecycle(mode, "starting")
         try:
+            scope = ConversationContextScope.ephemeral(mode, "user")
             with NativeContextEngine(
                 queue_capacity=self._config.queue_capacity,
                 max_segments=self._config.max_segments,
+                scope=scope,
                 library_path=self._config.core_library,
             ) as engine:
                 metrics.transition("ready")
@@ -204,9 +206,11 @@ class LiveRuntime:
         self._events.lifecycle(mode, "starting")
         transport: LiveAudioTransport | None = None
         try:
+            scope = ConversationContextScope.ephemeral(mode, "local-user")
             with NativeContextEngine(
                 queue_capacity=self._config.queue_capacity,
                 max_segments=self._config.max_segments,
+                scope=scope,
                 library_path=self._config.core_library,
             ) as engine:
                 knowledge_token = metrics.start_stage("knowledge")

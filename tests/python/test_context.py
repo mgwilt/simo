@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from simo.context import DropPolicy, NativeContextEngine
+from simo.context import (
+    ContextParticipant,
+    ConversationContextScope,
+    DropPolicy,
+    NativeContextEngine,
+)
 
 
 class NativeContextTests(unittest.TestCase):
@@ -29,6 +34,47 @@ class NativeContextTests(unittest.TestCase):
         engine.close()
         with self.assertRaisesRegex(RuntimeError, "closed"):
             engine.tick()
+
+    def test_scoped_worlds_are_isolated_and_serialize_values_only(self) -> None:
+        left_scope = ConversationContextScope(
+            "alias-left",
+            "conversation-left",
+            "left-local",
+            (
+                ContextParticipant("left-local", "alias", "alias-left", "Left", "lk-left"),
+                ContextParticipant("right-remote", "alias", "alias-right", "Right", "lk-right"),
+            ),
+        )
+        right_scope = ConversationContextScope(
+            "alias-right",
+            "conversation-right",
+            "right-local",
+            (
+                ContextParticipant("right-local", "alias", "alias-right", "Right", "lk-right"),
+                ContextParticipant("left-remote", "alias", "alias-left", "Left", "lk-left"),
+            ),
+        )
+        with (
+            NativeContextEngine(scope=left_scope) as left,
+            NativeContextEngine(scope=right_scope) as right,
+        ):
+            with self.assertRaisesRegex(ValueError, "outside the context scope"):
+                left.enqueue_transcript("unknown", "must fail closed")
+            left.enqueue_transcript("right-remote", "visible only to left")
+            right.enqueue_transcript("left-remote", "visible only to right")
+            left.tick()
+            right.tick()
+            left_snapshot = left.snapshot()
+            right_snapshot = right.snapshot()
+
+        self.assertEqual("alias-left", left_snapshot["alias_id"])
+        self.assertEqual("conversation-left", left_snapshot["conversation_id"])
+        self.assertEqual("left-local", left_snapshot["local_participant_id"])
+        self.assertEqual("lk-right", left_snapshot["participants"][1]["transport_participant_id"])
+        self.assertEqual("visible only to left", left_snapshot["items"][0]["text"])
+        self.assertEqual("visible only to right", right_snapshot["items"][0]["text"])
+        self.assertNotIn("visible only to right", str(left_snapshot))
+        self.assertFalse(any("entity" in key or "handle" in key for key in left_snapshot))
 
 
 if __name__ == "__main__":

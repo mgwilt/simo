@@ -291,7 +291,7 @@ async def prove_real_model_pipeline(
     from simo.adapters.pipecat.observer import PipecatSemanticObserver
     from simo.adapters.pipecat.qwen_tts import QwenMLXTTSService
     from simo.adapters.pipecat.semantic_turn import SemanticTurnProcessor
-    from simo.context import NativeContextEngine
+    from simo.context import ConversationContextScope, NativeContextEngine
     from simo.knowledge import refresh_knowledge_graph
     from simo.observation import (
         BoundedTranscriptMailbox,
@@ -300,9 +300,11 @@ async def prove_real_model_pipeline(
     from simo.operations import RuntimeMetrics
 
     metrics = RuntimeMetrics()
+    scope = ConversationContextScope.ephemeral("model-proof", "synthetic-proof")
     with NativeContextEngine(
         queue_capacity=config.queue_capacity,
         max_segments=config.max_segments,
+        scope=scope,
         library_path=config.core_library,
     ) as engine:
         knowledge = refresh_knowledge_graph(engine, config.repository)

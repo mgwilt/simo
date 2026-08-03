@@ -30,8 +30,60 @@ simo_context_engine* simo_context_engine_create(
     }
 }
 
+simo_context_engine* simo_context_engine_create_scoped(
+    const size_t queue_capacity,
+    const size_t max_segments,
+    const simo_drop_policy drop_policy,
+    const char* alias_id,
+    const char* conversation_id,
+    const char* local_participant_id) {
+    try {
+        if ((drop_policy != SIMO_DROP_OLDEST && drop_policy != SIMO_DROP_NEWEST) ||
+            alias_id == nullptr || conversation_id == nullptr || local_participant_id == nullptr) {
+            return nullptr;
+        }
+        const auto policy = drop_policy == SIMO_DROP_NEWEST ? simo::DropPolicy::drop_newest
+                                                            : simo::DropPolicy::drop_oldest;
+        return new simo_context_engine({
+            queue_capacity,
+            max_segments,
+            policy,
+            alias_id,
+            conversation_id,
+            local_participant_id,
+        });
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 void simo_context_engine_destroy(simo_context_engine* engine) {
     delete engine;
+}
+
+int simo_context_engine_upsert_participant(
+    simo_context_engine* engine,
+    const char* participant_id,
+    const char* kind,
+    const char* alias_id,
+    const char* display_name,
+    const char* transport_participant_id) {
+    if (engine == nullptr || participant_id == nullptr || kind == nullptr || alias_id == nullptr ||
+        display_name == nullptr || transport_participant_id == nullptr) {
+        return -1;
+    }
+    try {
+        engine->value.upsert_participant({
+            participant_id,
+            kind,
+            alias_id,
+            display_name,
+            transport_participant_id,
+        });
+        return 0;
+    } catch (...) {
+        return -1;
+    }
 }
 
 int simo_context_engine_enqueue_transcript(

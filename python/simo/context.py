@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, Self, cast
+from uuid import uuid4
 
 
 class DropPolicy(IntEnum):
@@ -56,6 +57,76 @@ class KnowledgeRefreshStats:
     concepts: int
     links: int
     removed: int
+
+
+@dataclass(frozen=True, slots=True)
+class ContextParticipant:
+    participant_id: str
+    kind: str
+    alias_id: str | None
+    display_name: str
+    transport_participant_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.participant_id.strip():
+            raise ValueError("context participant ID must not be empty")
+        if self.kind not in {"alias", "human", "external"}:
+            raise ValueError("context participant kind must be alias, human, or external")
+        if self.kind == "alias" and not self.alias_id:
+            raise ValueError("alias context participant requires an alias ID")
+        if not self.display_name.strip():
+            raise ValueError("context participant display name must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationContextScope:
+    alias_id: str
+    conversation_id: str
+    local_participant_id: str
+    participants: tuple[ContextParticipant, ...]
+
+    def __post_init__(self) -> None:
+        if not self.alias_id.strip() or not self.conversation_id.strip():
+            raise ValueError("context alias and conversation IDs must not be empty")
+        participant_ids = [participant.participant_id for participant in self.participants]
+        if len(participant_ids) != len(set(participant_ids)):
+            raise ValueError("context participant IDs must be unique")
+        if self.local_participant_id not in participant_ids:
+            raise ValueError("local context participant must be present in participants")
+        local = self.participants[participant_ids.index(self.local_participant_id)]
+        if local.kind != "alias" or local.alias_id != self.alias_id:
+            raise ValueError("local context participant must represent the scoped alias")
+
+    @classmethod
+    def ephemeral(cls, mode: str, remote_participant_id: str) -> ConversationContextScope:
+        """Create an explicitly non-persisted scope for diagnostic runtimes."""
+
+        selected_mode = mode.strip()
+        selected_remote = remote_participant_id.strip()
+        if not selected_mode or not selected_remote:
+            raise ValueError("ephemeral scope identity must not be empty")
+        run_id = str(uuid4())
+        alias_id = f"ephemeral:{selected_mode}:{run_id}"
+        local_participant_id = f"alias:{run_id}"
+        return cls(
+            alias_id,
+            f"ephemeral:{selected_mode}:{run_id}",
+            local_participant_id,
+            (
+                ContextParticipant(
+                    local_participant_id,
+                    "alias",
+                    alias_id,
+                    f"Simo {selected_mode}",
+                ),
+                ContextParticipant(
+                    selected_remote,
+                    "external",
+                    None,
+                    "Remote participant",
+                ),
+            ),
+        )
 
 
 class _NativeStats(ctypes.Structure):
@@ -125,8 +196,26 @@ def _configure_library(library: ctypes.CDLL) -> None:
         ctypes.c_int,
     ]
     library.simo_context_engine_create.restype = ctypes.c_void_p
+    library.simo_context_engine_create_scoped.argtypes = [
+        ctypes.c_size_t,
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+    ]
+    library.simo_context_engine_create_scoped.restype = ctypes.c_void_p
     library.simo_context_engine_destroy.argtypes = [ctypes.c_void_p]
     library.simo_context_engine_destroy.restype = None
+    library.simo_context_engine_upsert_participant.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+    ]
+    library.simo_context_engine_upsert_participant.restype = ctypes.c_int
     library.simo_context_engine_enqueue_transcript.argtypes = [
         ctypes.c_void_p,
         ctypes.c_char_p,
@@ -183,20 +272,41 @@ class NativeContextEngine:
         queue_capacity: int = 256,
         max_segments: int = 64,
         drop_policy: DropPolicy = DropPolicy.DROP_OLDEST,
+        scope: ConversationContextScope | None = None,
         library_path: str | os.PathLike[str] | None = None,
     ) -> None:
         if queue_capacity <= 0 or max_segments <= 0:
             raise ValueError("queue_capacity and max_segments must be positive")
         self._library = ctypes.CDLL(str(find_core_library(library_path)))
         _configure_library(self._library)
-        handle = self._library.simo_context_engine_create(
-            queue_capacity,
-            max_segments,
-            int(drop_policy),
+        handle_value = cast(
+            object,
+            self._library.simo_context_engine_create(
+                queue_capacity,
+                max_segments,
+                int(drop_policy),
+            )
+            if scope is None
+            else self._library.simo_context_engine_create_scoped(
+                queue_capacity,
+                max_segments,
+                int(drop_policy),
+                scope.alias_id.encode("utf-8"),
+                scope.conversation_id.encode("utf-8"),
+                scope.local_participant_id.encode("utf-8"),
+            ),
         )
-        if not handle:
+        if not isinstance(handle_value, int) or handle_value == 0:
             raise RuntimeError("failed to create native Simo context engine")
-        self._handle: int | None = int(handle)
+        self._handle: int | None = handle_value
+        self._participant_ids: set[str] | None = set() if scope is not None else None
+        if scope is not None:
+            try:
+                for participant in scope.participants:
+                    self.upsert_participant(participant)
+            except Exception:
+                self.close()
+                raise
 
     def close(self) -> None:
         if self._handle is not None:
@@ -227,6 +337,8 @@ class NativeContextEngine:
         return self._handle
 
     def enqueue_transcript(self, speaker: str, text: str, is_final: bool = True) -> EnqueueResult:
+        if self._participant_ids is not None and speaker not in self._participant_ids:
+            raise ValueError(f"transcript speaker is outside the context scope: {speaker}")
         sequence = ctypes.c_uint64()
         result = self._library.simo_context_engine_enqueue_transcript(
             self._require_handle(),
@@ -238,6 +350,23 @@ class NativeContextEngine:
         if result < 0:
             raise RuntimeError("native Simo context engine rejected invalid input")
         return EnqueueResult(bool(result), sequence.value)
+
+    def upsert_participant(self, participant: ContextParticipant) -> None:
+        result_value = cast(
+            object,
+            self._library.simo_context_engine_upsert_participant(
+                self._require_handle(),
+                participant.participant_id.encode("utf-8"),
+                participant.kind.encode("utf-8"),
+                (participant.alias_id or "").encode("utf-8"),
+                participant.display_name.encode("utf-8"),
+                (participant.transport_participant_id or "").encode("utf-8"),
+            ),
+        )
+        if result_value != 0:
+            raise RuntimeError("native Simo context engine rejected participant identity")
+        if self._participant_ids is not None:
+            self._participant_ids.add(participant.participant_id)
 
     def tick(self) -> int:
         return int(self._library.simo_context_engine_tick(self._require_handle()))

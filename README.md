@@ -62,7 +62,9 @@ uv run simo talk --alias <alias-id> \
 uv run simo conversation export <conversation-id> ./conversation.json
 ```
 
-This deterministic persisted path opens no audio device and loads no model. It proves ordered recording, review, export, and restart reconstruction; relationship learning, live-model transcript wiring, isolated multi-alias Flecs sessions, and WebRTC rooms remain later milestones in `W-20260802-conversational-identities`.
+Every persisted `(alias, conversation)` run creates a separate native Flecs world. Its conversation and participants are graph entities carrying stable alias, conversation, participant, and optional transport-participant identities. Pipecat inference receives a bounded immutable snapshot containing those values and recent context; native entity IDs, handles, database connections, and mutable storage objects are never serialized across that boundary. Unknown transcript speakers fail closed for scoped worlds.
+
+This deterministic persisted path opens no audio device and loads no model. It proves ordered recording, review, export, restart reconstruction, and isolated scoped Flecs projections; relationship learning, live-model transcript wiring, and WebRTC rooms remain later milestones in `W-20260802-conversational-identities`.
 
 ## Preflight
 

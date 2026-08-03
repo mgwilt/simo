@@ -79,11 +79,61 @@ void test_snapshot_is_immutable_value() {
     assert(after->items.size() == 2U);
 }
 
+void test_scoped_worlds_project_identity_without_cross_contamination() {
+    simo::ContextEngine left({
+        4U,
+        4U,
+        simo::DropPolicy::drop_oldest,
+        "alias-left",
+        "conversation-left",
+        "participant-left",
+    });
+    simo::ContextEngine right({
+        4U,
+        4U,
+        simo::DropPolicy::drop_oldest,
+        "alias-right",
+        "conversation-right",
+        "participant-right",
+    });
+    left.upsert_participant(
+        {"participant-left", "alias", "alias-left", "Left", "transport-left"});
+    left.upsert_participant({"remote-right", "alias", "alias-right", "Right", "transport-right"});
+    right.upsert_participant(
+        {"participant-right", "alias", "alias-right", "Right", "transport-right"});
+    right.upsert_participant({"remote-left", "alias", "alias-left", "Left", "transport-left"});
+
+    static_cast<void>(left.enqueue_transcript("remote-right", "left world only"));
+    static_cast<void>(right.enqueue_transcript("remote-left", "right world only"));
+    assert(left.tick() == 1U);
+    assert(right.tick() == 1U);
+
+    const auto left_snapshot = left.snapshot();
+    const auto right_snapshot = right.snapshot();
+    assert(left_snapshot->alias_id == "alias-left");
+    assert(left_snapshot->conversation_id == "conversation-left");
+    assert(left_snapshot->local_participant_id == "participant-left");
+    assert(left_snapshot->participants.size() == 2U);
+    assert(left_snapshot->items[0].text == "left world only");
+    assert(right_snapshot->alias_id == "alias-right");
+    assert(right_snapshot->items[0].text == "right world only");
+    assert(right_snapshot->to_json().find("left world only") == std::string::npos);
+    assert(left_snapshot->to_json().find("entity_id") == std::string::npos);
+}
+
 void test_c_api_json_contract() {
     std::unique_ptr<simo_context_engine, decltype(&simo_context_engine_destroy)> engine(
-        simo_context_engine_create(4U, 4U, SIMO_DROP_OLDEST),
+        simo_context_engine_create_scoped(
+            4U,
+            4U,
+            SIMO_DROP_OLDEST,
+            "alias-c",
+            "conversation-c",
+            "participant-c"),
         &simo_context_engine_destroy);
     assert(engine != nullptr);
+    assert(simo_context_engine_upsert_participant(
+               engine.get(), "participant-c", "alias", "alias-c", "C", "transport-c") == 0);
 
     std::uint64_t sequence = 0;
     assert(simo_context_engine_enqueue_transcript(
@@ -98,6 +148,7 @@ void test_c_api_json_contract() {
         simo_context_engine_snapshot_json(engine.get(), buffer.data(), buffer.size()) == required);
     const std::string json(buffer.data());
     assert(json.find("\\\"ok\\\"") != std::string::npos);
+    assert(json.find("\"conversation_id\":\"conversation-c\"") != std::string::npos);
 }
 
 simo::KnowledgeConceptInput knowledge_input(
@@ -158,6 +209,7 @@ int main() {
     test_drop_oldest_and_ordered_snapshot();
     test_drop_newest_and_retention();
     test_snapshot_is_immutable_value();
+    test_scoped_worlds_project_identity_without_cross_contamination();
     test_c_api_json_contract();
     test_incremental_knowledge_projection();
     return 0;

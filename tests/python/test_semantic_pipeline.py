@@ -11,7 +11,7 @@ from simo.adapters.pipecat.semantic_turn import (
     SemanticContextSnapshot,
     format_semantic_context,
 )
-from simo.context import NativeContextEngine
+from simo.context import ContextParticipant, ConversationContextScope, NativeContextEngine
 
 
 class SemanticFormattingTests(unittest.TestCase):
@@ -38,10 +38,22 @@ class SemanticFormattingTests(unittest.TestCase):
 
 class DeterministicPipelineTests(unittest.IsolatedAsyncioTestCase):
     async def test_full_pipeline_injects_once_and_emits_audio_per_turn(self) -> None:
-        with NativeContextEngine() as engine:
+        scope = ConversationContextScope(
+            "alias-test",
+            "conversation-test",
+            "alias-participant",
+            (
+                ContextParticipant(
+                    "alias-participant", "alias", "alias-test", "Test Simo", "lk-simo"
+                ),
+                ContextParticipant("remote-user", "human", None, "Test user", "lk-user"),
+            ),
+        )
+        with NativeContextEngine(scope=scope) as engine:
             result = await run_deterministic_pipeline(
                 engine,
                 ["hello", "remember the blue door"],
+                speaker_id="remote-user",
             )
 
         self.assertEqual(2, result.injection_count)
@@ -52,6 +64,17 @@ class DeterministicPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, result.observer_mailbox_dropped)
         self.assertEqual(0, result.observer_mailbox_queued)
         self.assertEqual([1, 2], [turn.context.revision for turn in result.turns])
+        self.assertTrue(all(turn.context.alias_id == "alias-test" for turn in result.turns))
+        self.assertTrue(
+            all(turn.context.conversation_id == "conversation-test" for turn in result.turns)
+        )
+        self.assertTrue(
+            all(turn.context.local_participant_id == "alias-participant" for turn in result.turns)
+        )
+        self.assertEqual(
+            {"alias-participant", "remote-user"},
+            {participant.participant_id for participant in result.turns[-1].context.participants},
+        )
         self.assertEqual(
             [1, 2],
             [len(turn.context.items) for turn in result.turns],

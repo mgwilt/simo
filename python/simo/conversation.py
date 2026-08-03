@@ -9,7 +9,7 @@ from pipecat.frames.frames import LLMTextFrame, TTSTextFrame
 
 from simo.adapters.pipecat.deterministic import run_deterministic_pipeline
 from simo.config import RuntimeConfig
-from simo.context import NativeContextEngine
+from simo.context import ContextParticipant, ConversationContextScope, NativeContextEngine
 from simo.knowledge import refresh_knowledge_graph
 from simo.persistence import (
     ConversationEventType,
@@ -64,11 +64,35 @@ class PersistedConversationRuntime:
             display_name="Local user",
         )
         alias_participant_id = f"alias:{alias_id}"
+        alias_participant = self._store.add_participant(
+            selected_conversation_id,
+            alias_participant_id,
+            kind="alias",
+            alias_id=alias_id,
+            display_name=alias.display_name,
+        )
+        current_detail = self._store.get_conversation(selected_conversation_id)
+        scope = ConversationContextScope(
+            alias_id,
+            selected_conversation_id,
+            alias_participant.participant_id,
+            tuple(
+                ContextParticipant(
+                    participant.participant_id,
+                    participant.kind,
+                    participant.alias_id,
+                    participant.display_name,
+                    participant.transport_participant_id,
+                )
+                for participant in current_detail.participants
+            ),
+        )
         transcript_before = self._store.transcript(selected_conversation_id)
 
         with NativeContextEngine(
             queue_capacity=self._config.queue_capacity,
             max_segments=self._config.max_segments,
+            scope=scope,
             library_path=self._config.core_library,
         ) as engine:
             refresh_knowledge_graph(engine, self._config.repository)
@@ -87,6 +111,7 @@ class PersistedConversationRuntime:
                 result = await run_deterministic_pipeline(
                     engine,
                     [user_text],
+                    speaker_id=human.participant_id,
                     max_prompt_chars=self._config.context_max_chars,
                     max_context_age_ms=self._config.context_max_age_ms,
                 )

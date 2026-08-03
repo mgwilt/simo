@@ -20,6 +20,9 @@ struct EngineConfig {
     std::size_t queue_capacity{256};
     std::size_t max_segments{64};
     DropPolicy drop_policy{DropPolicy::drop_oldest};
+    std::string alias_id{"ephemeral:unscoped"};
+    std::string conversation_id{"ephemeral:unscoped"};
+    std::string local_participant_id{"alias:unscoped"};
 };
 
 struct EnqueueResult {
@@ -36,8 +39,22 @@ struct ContextItem {
     float salience{0.0F};
 };
 
+struct ParticipantInput {
+    std::string participant_id;
+    std::string kind;
+    std::string alias_id;
+    std::string display_name;
+    std::string transport_participant_id;
+};
+
+struct ParticipantView : ParticipantInput {};
+
 struct ContextSnapshot {
     std::uint64_t revision{0};
+    std::string alias_id;
+    std::string conversation_id;
+    std::string local_participant_id;
+    std::vector<ParticipantView> participants;
     std::vector<ContextItem> items;
 
     [[nodiscard]] std::string to_json() const;
@@ -102,6 +119,7 @@ public:
         std::string speaker,
         std::string text,
         bool is_final = true);
+    void upsert_participant(ParticipantInput input);
     [[nodiscard]] std::size_t tick();
     [[nodiscard]] std::shared_ptr<const ContextSnapshot> snapshot() const;
     [[nodiscard]] EngineStats stats() const;

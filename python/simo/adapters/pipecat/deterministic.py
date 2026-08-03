@@ -148,6 +148,7 @@ async def run_deterministic_pipeline(
     engine: NativeContextEngine,
     transcripts: list[str],
     *,
+    speaker_id: str = "user",
     max_prompt_chars: int = 8_000,
     max_context_age_ms: int = 1_000,
     metrics: RuntimeMetrics | None = None,
@@ -180,7 +181,7 @@ async def run_deterministic_pipeline(
     frames = [
         TranscriptionFrame(
             text=text,
-            user_id="user",
+            user_id=speaker_id,
             timestamp=f"turn-{index}",
             finalized=True,
         )

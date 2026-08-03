@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from pipecat.frames.frames import (
     DataFrame,
@@ -14,7 +14,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from simo.context import NativeContextEngine
+from simo.context import ContextParticipant, NativeContextEngine
 from simo.observation import BoundedTranscriptMailbox, FinalTranscriptObservationBridge
 
 
@@ -31,10 +31,41 @@ class ContextItem:
 class SemanticContextSnapshot:
     revision: int
     items: tuple[ContextItem, ...]
+    alias_id: str = "ephemeral:unscoped"
+    conversation_id: str = "ephemeral:unscoped"
+    local_participant_id: str = "alias:unscoped"
+    participants: tuple[ContextParticipant, ...] = ()
     captured_monotonic_ns: int = field(default_factory=time.monotonic_ns)
 
     @classmethod
     def from_native(cls, value: dict[str, Any]) -> SemanticContextSnapshot:
+        typed_value = cast("dict[str, object]", value)
+        alias_id = _native_string(typed_value, "alias_id")
+        conversation_id = _native_string(typed_value, "conversation_id")
+        local_participant_id = _native_string(typed_value, "local_participant_id")
+        raw_participants = typed_value.get("participants")
+        if not isinstance(raw_participants, list):
+            raise TypeError("native semantic participants must be a list")
+        participants: list[ContextParticipant] = []
+        for raw_participant in cast("list[object]", raw_participants):
+            if not isinstance(raw_participant, dict):
+                raise TypeError("native semantic participant must be an object")
+            participant = cast("dict[str, object]", raw_participant)
+            participant_alias = _native_string(participant, "alias_id", allow_empty=True)
+            transport_id = _native_string(
+                participant,
+                "transport_participant_id",
+                allow_empty=True,
+            )
+            participants.append(
+                ContextParticipant(
+                    participant_id=_native_string(participant, "participant_id"),
+                    kind=_native_string(participant, "kind"),
+                    alias_id=participant_alias or None,
+                    display_name=_native_string(participant, "display_name"),
+                    transport_participant_id=transport_id or None,
+                )
+            )
         return cls(
             revision=int(value["revision"]),
             items=tuple(
@@ -47,6 +78,10 @@ class SemanticContextSnapshot:
                 )
                 for item in value["items"]
             ),
+            alias_id=alias_id,
+            conversation_id=conversation_id,
+            local_participant_id=local_participant_id,
+            participants=tuple(participants),
         )
 
     def require_fresh(self, max_age_ms: int) -> None:
@@ -55,6 +90,18 @@ class SemanticContextSnapshot:
         age_ns = time.monotonic_ns() - self.captured_monotonic_ns
         if age_ns > max_age_ms * 1_000_000:
             raise ValueError(f"semantic context snapshot exceeds {max_age_ms} ms")
+
+
+def _native_string(
+    value: dict[str, object],
+    key: str,
+    *,
+    allow_empty: bool = False,
+) -> str:
+    selected = value.get(key)
+    if not isinstance(selected, str) or (not allow_empty and not selected):
+        raise TypeError(f"native semantic {key} must be a string")
+    return selected
 
 
 @dataclass

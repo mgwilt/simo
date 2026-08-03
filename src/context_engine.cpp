@@ -27,6 +27,14 @@ struct ContextCandidate {
     float salience;
 };
 
+struct ConversationIdentity {
+    std::string alias_id;
+    std::string conversation_id;
+    std::string local_participant_id;
+};
+
+struct ParticipantIdentity : ParticipantInput {};
+
 struct PendingTranscript {
     std::uint64_t sequence;
     std::string speaker;
@@ -90,7 +98,14 @@ public:
     explicit Impl(EngineConfig engine_config)
         : config(std::move(engine_config)),
           conversation(world.entity("simo.Conversation")),
-          current_snapshot(std::make_shared<const ContextSnapshot>()),
+          current_snapshot(std::make_shared<const ContextSnapshot>(ContextSnapshot{
+              0U,
+              config.alias_id,
+              config.conversation_id,
+              config.local_participant_id,
+              {},
+              {},
+          })),
           current_knowledge_snapshot(std::make_shared<const KnowledgeSnapshot>()) {
         if (config.queue_capacity == 0U) {
             throw std::invalid_argument("queue_capacity must be greater than zero");
@@ -98,11 +113,22 @@ public:
         if (config.max_segments == 0U) {
             throw std::invalid_argument("max_segments must be greater than zero");
         }
+        if (config.alias_id.empty() || config.conversation_id.empty() ||
+            config.local_participant_id.empty()) {
+            throw std::invalid_argument("context scope identity must not be empty");
+        }
 
         world.component<TranscriptSegment>();
         world.component<ContextCandidate>();
+        world.component<ConversationIdentity>();
+        world.component<ParticipantIdentity>();
         world.component<KnowledgeConceptComponent>();
         world.component<ReferencesKnowledge>();
+        conversation.set<ConversationIdentity>({
+            config.alias_id,
+            config.conversation_id,
+            config.local_participant_id,
+        });
 
         world.observer<TranscriptSegment>("simo.ObserveTranscriptStructure")
             .event(flecs::OnSet)
@@ -132,6 +158,7 @@ public:
 
     mutable std::mutex snapshot_mutex;
     std::shared_ptr<const ContextSnapshot> current_snapshot;
+    std::unordered_map<std::string, flecs::entity_t> participant_entities;
 
     std::uint64_t knowledge_generation{0};
     bool knowledge_refresh_active{false};
@@ -142,7 +169,23 @@ public:
 
 std::string ContextSnapshot::to_json() const {
     std::ostringstream output;
-    output << "{\"revision\":" << revision << ",\"items\":[";
+    output << "{\"revision\":" << revision << ",\"alias_id\":\""
+           << escape_json(alias_id) << "\",\"conversation_id\":\""
+           << escape_json(conversation_id) << "\",\"local_participant_id\":\""
+           << escape_json(local_participant_id) << "\",\"participants\":[";
+    for (std::size_t index = 0; index < participants.size(); ++index) {
+        const auto& participant = participants[index];
+        if (index != 0U) {
+            output << ',';
+        }
+        output << "{\"participant_id\":\"" << escape_json(participant.participant_id)
+               << "\",\"kind\":\"" << escape_json(participant.kind)
+               << "\",\"alias_id\":\"" << escape_json(participant.alias_id)
+               << "\",\"display_name\":\"" << escape_json(participant.display_name)
+               << "\",\"transport_participant_id\":\""
+               << escape_json(participant.transport_participant_id) << "\"}";
+    }
+    output << "],\"items\":[";
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
         if (index != 0U) {
@@ -220,6 +263,44 @@ EnqueueResult ContextEngine::enqueue_transcript(
     return {.accepted = true, .sequence = sequence, .dropped_sequence = dropped_sequence};
 }
 
+void ContextEngine::upsert_participant(ParticipantInput input) {
+    if (input.participant_id.empty() || input.kind.empty() || input.display_name.empty()) {
+        throw std::invalid_argument("participant identity fields must not be empty");
+    }
+    std::lock_guard world_lock(impl_->world_mutex);
+    auto iterator = impl_->participant_entities.find(input.participant_id);
+    flecs::entity entity;
+    if (iterator == impl_->participant_entities.end()) {
+        entity = impl_->world.entity().child_of(impl_->conversation);
+        impl_->participant_entities.emplace(input.participant_id, entity.id());
+    } else {
+        entity = impl_->world.entity(iterator->second);
+    }
+    ParticipantIdentity component;
+    static_cast<ParticipantInput&>(component) = input;
+    entity.set<ParticipantIdentity>(std::move(component));
+
+    std::vector<ParticipantView> participants;
+    participants.reserve(impl_->participant_entities.size());
+    for (const auto& [participant_id, entity_id] : impl_->participant_entities) {
+        static_cast<void>(participant_id);
+        const auto* current = impl_->world.entity(entity_id).try_get<ParticipantIdentity>();
+        if (current != nullptr) {
+            participants.push_back({static_cast<const ParticipantInput&>(*current)});
+        }
+    }
+    std::ranges::sort(participants, {}, &ParticipantView::participant_id);
+    std::lock_guard snapshot_lock(impl_->snapshot_mutex);
+    impl_->current_snapshot = std::make_shared<const ContextSnapshot>(ContextSnapshot{
+        impl_->current_snapshot->revision,
+        impl_->config.alias_id,
+        impl_->config.conversation_id,
+        impl_->config.local_participant_id,
+        std::move(participants),
+        impl_->current_snapshot->items,
+    });
+}
+
 std::size_t ContextEngine::tick() {
     std::deque<PendingTranscript> events;
     {
@@ -279,8 +360,14 @@ std::size_t ContextEngine::tick() {
 
     std::lock_guard lock(impl_->snapshot_mutex);
     const auto next_revision = impl_->current_snapshot->revision + 1U;
-    impl_->current_snapshot =
-        std::make_shared<const ContextSnapshot>(ContextSnapshot{next_revision, std::move(items)});
+    impl_->current_snapshot = std::make_shared<const ContextSnapshot>(ContextSnapshot{
+        next_revision,
+        impl_->config.alias_id,
+        impl_->config.conversation_id,
+        impl_->config.local_participant_id,
+        impl_->current_snapshot->participants,
+        std::move(items),
+    });
     return events.size();
 }
 
