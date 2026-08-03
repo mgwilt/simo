@@ -45,6 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
         "live",
         help="run the local microphone/speaker MLX voice agent",
     )
+    proof = subcommands.add_parser(
+        "prove-models",
+        help="execute the selected local models without opening audio devices",
+    )
+    proof.add_argument(
+        "--artifacts-dir",
+        type=Path,
+        default=Path(".artifacts/model-proof"),
+        help="ignored directory for the synthetic TTS WAV",
+    )
     return parser
 
 
@@ -53,7 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         requested_mode = (
             RunMode.LIVE
-            if args.command == "live"
+            if args.command in {"live", "prove-models"}
             else getattr(args, "mode", RunMode.HEADLESS)
         )
         config = RuntimeConfig.from_environment(mode=requested_mode)
@@ -92,6 +102,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 LiveRuntime(config, events=JsonEventSink(sys.stderr)).run()
             )
             print(json.dumps({"operations": result.operations}))
+            return 0
+        if args.command == "prove-models":
+            report = inspect_runtime(config)
+            if not report.ready:
+                _print_report(report, False)
+                return 1
+            from simo.model_proof import prove_models
+
+            result = asyncio.run(prove_models(config, args.artifacts_dir))
+            print(json.dumps(result))
             return 0
     except KeyboardInterrupt:
         print("simo: interrupted", file=sys.stderr)
