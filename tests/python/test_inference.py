@@ -19,6 +19,7 @@ from simo.adapters.pipecat.semantic_turn import (
     SemanticTurnFrame,
 )
 from simo.inference import MLXTextGenerator, ParakeetMLXRecognizer
+from simo.operations import RuntimeMetrics
 
 
 class FakeStream:
@@ -105,7 +106,8 @@ class FakeGenerator:
 class PipecatInferenceProcessorTests(unittest.IsolatedAsyncioTestCase):
     async def test_stt_emits_final_transcription_and_bounds_errors(self) -> None:
         frames: list[object] = []
-        processor = LocalSTTProcessor(FakeRecognizer())
+        metrics = RuntimeMetrics()
+        processor = LocalSTTProcessor(FakeRecognizer(), metrics=metrics)
 
         async def collect(frame: object, direction: FrameDirection) -> None:
             frames.append(frame)
@@ -116,9 +118,13 @@ class PipecatInferenceProcessorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(frames))
         self.assertIsInstance(frames[0], TranscriptionFrame)
         self.assertTrue(frames[0].finalized)  # type: ignore[union-attr]
+        self.assertEqual(1, metrics.snapshot()["stages"]["stt"]["calls"])
 
         failed: list[object] = []
-        error_processor = LocalSTTProcessor(FakeRecognizer(error=RuntimeError("bad")))
+        error_processor = LocalSTTProcessor(
+            FakeRecognizer(error=RuntimeError("bad")),
+            metrics=metrics,
+        )
 
         async def collect_error(frame: object, direction: FrameDirection) -> None:
             failed.append(frame)
@@ -126,10 +132,18 @@ class PipecatInferenceProcessorTests(unittest.IsolatedAsyncioTestCase):
         error_processor.push_frame = collect_error  # type: ignore[method-assign]
         await error_processor.process_frame(utterance, FrameDirection.DOWNSTREAM)
         self.assertIsInstance(failed[0], ErrorFrame)
+        self.assertEqual(1, metrics.snapshot()["stages"]["stt"]["errors"])
 
-    async def test_text_processor_injects_snapshot_once_and_emits_llm_frames(self) -> None:
+    async def test_text_processor_injects_snapshot_once_and_emits_llm_frames(
+        self,
+    ) -> None:
         generator = FakeGenerator()
-        processor = LocalTextInferenceProcessor(generator, max_tokens=64)
+        metrics = RuntimeMetrics()
+        processor = LocalTextInferenceProcessor(
+            generator,
+            max_tokens=64,
+            metrics=metrics,
+        )
         frames: list[object] = []
 
         async def collect(frame: object, direction: FrameDirection) -> None:
@@ -148,6 +162,10 @@ class PipecatInferenceProcessorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Current user: what color?", prompt)
         self.assertEqual(64, max_tokens)
         self.assertEqual(1, sum(isinstance(frame, LLMTextFrame) for frame in frames))
+        self.assertEqual(
+            1,
+            metrics.snapshot()["stages"]["text_inference"]["calls"],
+        )
 
 
 if __name__ == "__main__":

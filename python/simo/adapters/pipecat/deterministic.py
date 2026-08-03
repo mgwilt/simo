@@ -28,28 +28,46 @@ from simo.adapters.pipecat.observer import PipecatSemanticObserver
 from simo.adapters.pipecat.semantic_turn import SemanticTurnFrame, SemanticTurnProcessor
 from simo.context import NativeContextEngine
 from simo.observation import BoundedTranscriptMailbox, FinalTranscriptObservationBridge
+from simo.operations import RuntimeMetrics
 
 
 class DeterministicTextInference(FrameProcessor):
     """Emit a stable response that demonstrably consumes semantic context."""
 
-    def __init__(self, *, max_context_age_ms: int = 1_000) -> None:
+    def __init__(
+        self,
+        *,
+        max_context_age_ms: int = 1_000,
+        metrics: RuntimeMetrics | None = None,
+    ) -> None:
         super().__init__(enable_direct_mode=True)
         self._max_context_age_ms = max_context_age_ms
+        self._runtime_metrics = metrics
         self.turns: list[SemanticTurnFrame] = []
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
-        if direction is FrameDirection.DOWNSTREAM and isinstance(frame, SemanticTurnFrame):
-            frame.context.require_fresh(self._max_context_age_ms)
-            self.turns.append(frame)
-            response = (
-                f"Context revision {frame.context.revision} has "
-                f"{len(frame.context.items)} item(s). You said: {frame.user_text}"
-            )
-            await self.push_frame(LLMFullResponseStartFrame(), direction)
-            await self.push_frame(LLMTextFrame(text=response), direction)
-            await self.push_frame(LLMFullResponseEndFrame(), direction)
+        if direction is FrameDirection.DOWNSTREAM and isinstance(
+            frame, SemanticTurnFrame
+        ):
+            metrics = self._runtime_metrics
+            token = metrics.start_stage("text_inference") if metrics else None
+            try:
+                frame.context.require_fresh(self._max_context_age_ms)
+                self.turns.append(frame)
+                response = (
+                    f"Context revision {frame.context.revision} has "
+                    f"{len(frame.context.items)} item(s). You said: {frame.user_text}"
+                )
+                await self.push_frame(LLMFullResponseStartFrame(), direction)
+                await self.push_frame(LLMTextFrame(text=response), direction)
+                await self.push_frame(LLMFullResponseEndFrame(), direction)
+            except Exception:
+                if token:
+                    metrics.finish_stage(token, error=True)
+                raise
+            if token:
+                metrics.finish_stage(token)
             return
         await self.push_frame(frame, direction)
 
@@ -57,24 +75,41 @@ class DeterministicTextInference(FrameProcessor):
 class DeterministicTTS(FrameProcessor):
     """Turn LLM text into deterministic mono PCM frames without a model."""
 
-    def __init__(self, *, sample_rate: int = 24_000) -> None:
+    def __init__(
+        self,
+        *,
+        sample_rate: int = 24_000,
+        metrics: RuntimeMetrics | None = None,
+    ) -> None:
         super().__init__(enable_direct_mode=True)
         self.sample_rate = sample_rate
+        self._runtime_metrics = metrics
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
         await self.push_frame(frame, direction)
         if direction is FrameDirection.DOWNSTREAM and isinstance(frame, LLMTextFrame):
-            samples = max(1, len(frame.text))
-            await self.push_frame(
-                TTSAudioRawFrame(
-                    audio=b"\x01\x00" * samples,
-                    sample_rate=self.sample_rate,
-                    num_channels=1,
-                    context_id=str(frame.id),
-                ),
-                direction,
-            )
+            metrics = self._runtime_metrics
+            token = metrics.start_stage("tts") if metrics else None
+            try:
+                samples = max(1, len(frame.text))
+                await self.push_frame(
+                    TTSAudioRawFrame(
+                        audio=b"\x01\x00" * samples,
+                        sample_rate=self.sample_rate,
+                        num_channels=1,
+                        context_id=str(frame.id),
+                    ),
+                    direction,
+                )
+                if token:
+                    metrics.first_output(token)
+            except Exception:
+                if token:
+                    metrics.finish_stage(token, error=True)
+                raise
+            if token:
+                metrics.finish_stage(token)
 
 
 class FrameCollector(FrameProcessor):
@@ -108,6 +143,7 @@ async def run_deterministic_pipeline(
     *,
     max_prompt_chars: int = 8_000,
     max_context_age_ms: int = 1_000,
+    metrics: RuntimeMetrics | None = None,
 ) -> DeterministicPipelineResult:
     """Run final transcripts through Pipecat, Flecs, fake LLM, and fake TTS."""
 
@@ -119,8 +155,11 @@ async def run_deterministic_pipeline(
         mailbox,
         max_prompt_chars=max_prompt_chars,
     )
-    inference = DeterministicTextInference(max_context_age_ms=max_context_age_ms)
-    tts = DeterministicTTS()
+    inference = DeterministicTextInference(
+        max_context_age_ms=max_context_age_ms,
+        metrics=metrics,
+    )
+    tts = DeterministicTTS(metrics=metrics)
     collector = FrameCollector()
     pipeline = Pipeline([semantic_turn, inference, tts, collector])
     clock = SystemClock()

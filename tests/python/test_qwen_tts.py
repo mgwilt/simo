@@ -17,6 +17,7 @@ from pipecat.frames.frames import ErrorFrame, TTSAudioRawFrame
 
 from simo.adapters.pipecat.qwen_tts import QwenMLXTTSService
 from simo.inference import AudioChunk, MLXAudioSynthesizer
+from simo.operations import RuntimeMetrics
 
 
 class FakeQwenModel:
@@ -93,11 +94,13 @@ class QwenTTSBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_pipecat_service_emits_contextual_pcm_and_bounds_errors(self) -> None:
         model = FakeQwenModel()
+        metrics = RuntimeMetrics()
         service = QwenMLXTTSService(
             MLXAudioSynthesizer(
                 Path("/models/qwen-tts"),
                 model_loader=lambda path: model,
-            )
+            ),
+            metrics=metrics,
         )
 
         frames = [frame async for frame in service.run_tts("hello", "turn-1")]
@@ -107,6 +110,9 @@ class QwenTTSBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(frame.context_id == "turn-1" for frame in frames))
         self.assertTrue(all(frame.sample_rate == 24_000 for frame in frames))
         self.assertTrue(all(frame.num_channels == 1 for frame in frames))
+        tts_metrics = metrics.snapshot()["stages"]["tts"]
+        self.assertEqual(1, tts_metrics["calls"])
+        self.assertIsNotNone(tts_metrics["first_output_ms"])
 
         for text, message in (
             ("invalid", "invalid 16-bit PCM"),

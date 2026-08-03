@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 from simo.config import RunMode, RuntimeConfig
 from simo.doctor import DoctorReport, inspect_runtime
+from simo.operations import JsonEventSink
 from simo.runtime import HeadlessRuntime
 
 
@@ -46,7 +47,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not report.ready:
                 _print_report(report, False)
                 return 1
-            result = asyncio.run(HeadlessRuntime(config).run(args.transcript))
+            result = asyncio.run(
+                HeadlessRuntime(config, events=JsonEventSink(sys.stderr)).run(
+                    args.transcript
+                )
+            )
             print(
                 json.dumps(
                     {
@@ -54,10 +59,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "stats": result.stats,
                         "pipeline": result.pipeline,
                         "knowledge": result.knowledge,
+                        "operations": result.operations,
                     }
                 )
             )
             return 0
+    except KeyboardInterrupt:
+        print("simo: interrupted", file=sys.stderr)
+        return 130
     except (FileNotFoundError, RuntimeError, ValueError) as error:
         print(f"simo: {error}", file=sys.stderr)
         return 2
