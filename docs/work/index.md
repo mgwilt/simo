@@ -1,6 +1,8 @@
 # Work
 
-No active, review, or blocked Work Plans.
+## Active
+
+- [Finish the realtime agent](W-20260802-finish-realtime-agent/) - Delivers and proves Simo as a runnable open-source voice agent with Flecs context and OKF knowledge.
 
 ## Archive
 
