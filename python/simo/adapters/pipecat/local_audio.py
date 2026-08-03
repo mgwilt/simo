@@ -22,6 +22,7 @@ from pipecat.transports.local.audio import (
 )
 
 from simo.adapters.pipecat.inference import PCMUtteranceFrame
+from simo.operations import RuntimeMetrics
 
 
 class ManagedLocalAudioTransport(LocalAudioTransport):
@@ -55,6 +56,7 @@ class EnergyUtteranceProcessor(FrameProcessor):
         pre_roll_ms: int = 200,
         max_utterance_s: float = 30.0,
         user_id: str = "local-user",
+        runtime_metrics: RuntimeMetrics | None = None,
     ) -> None:
         if not 0 < start_rms <= 1:
             raise ValueError("start_rms must be between 0 and 1")
@@ -67,6 +69,7 @@ class EnergyUtteranceProcessor(FrameProcessor):
         self._pre_roll_ms = pre_roll_ms
         self._max_utterance_s = max_utterance_s
         self._user_id = user_id
+        self._runtime_metrics = runtime_metrics
         self._pre_roll: deque[bytes] = deque()
         self._pre_roll_duration_ms = 0.0
         self._utterance = bytearray()
@@ -115,6 +118,10 @@ class EnergyUtteranceProcessor(FrameProcessor):
                 self._silence_ms = 0.0
                 await self.push_frame(UserStartedSpeakingFrame(), direction)
                 await self.push_frame(InterruptionFrame(), direction)
+                if self._runtime_metrics is not None:
+                    self._runtime_metrics.record_user_speech_start(
+                        interruption_signaled=True
+                    )
             return
 
         self._utterance.extend(frame.audio)

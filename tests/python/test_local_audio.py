@@ -23,6 +23,7 @@ from simo.adapters.pipecat.local_audio import (
     EnergyUtteranceProcessor,
     ManagedLocalAudioTransport,
 )
+from simo.operations import RuntimeMetrics
 
 
 def audio_frame(sample: int, *, sample_rate: int = 16_000) -> InputAudioRawFrame:
@@ -35,11 +36,13 @@ def audio_frame(sample: int, *, sample_rate: int = 16_000) -> InputAudioRawFrame
 
 class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
     async def test_segments_pcm_and_emits_interruption_at_speech_start(self) -> None:
+        metrics = RuntimeMetrics()
         processor = EnergyUtteranceProcessor(
             start_rms=0.02,
             start_ms=60,
             stop_ms=60,
             pre_roll_ms=200,
+            runtime_metrics=metrics,
         )
         frames: list[object] = []
 
@@ -59,6 +62,10 @@ class EnergyUtteranceTests(unittest.IsolatedAsyncioTestCase):
         utterance = frames[3]
         self.assertEqual(16_000, utterance.sample_rate)  # type: ignore[union-attr]
         self.assertEqual(6 * 640, len(utterance.audio))  # type: ignore[union-attr]
+        self.assertEqual(
+            {"utterances_started": 1, "interruption_signals": 1},
+            metrics.snapshot()["audio_activity"],
+        )
 
     async def test_cancel_discards_partial_utterance(self) -> None:
         processor = EnergyUtteranceProcessor(start_ms=20, stop_ms=60)

@@ -220,6 +220,7 @@ class LiveRuntime:
                     stop_ms=self._config.vad_stop_ms,
                     pre_roll_ms=self._config.vad_pre_roll_ms,
                     max_utterance_s=self._config.max_utterance_s,
+                    runtime_metrics=metrics,
                 )
                 stt = LocalSTTProcessor(
                     self._recognizer_factory(self._config),

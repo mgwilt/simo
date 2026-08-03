@@ -36,6 +36,7 @@ class RuntimeMetricsTests(unittest.TestCase):
         metrics.first_output(token)
         now[0] += 15_000_000
         metrics.finish_stage(token)
+        metrics.record_user_speech_start(interruption_signaled=True)
         metrics.update_runtime_state(
             world_revision=3,
             context_queue_depth=1,
@@ -53,6 +54,8 @@ class RuntimeMetricsTests(unittest.TestCase):
         self.assertEqual(2, snapshot["context_queue"]["dropped"])
         self.assertEqual(1, snapshot["observer_mailbox"]["dropped"])
         self.assertEqual(1, snapshot["stages"]["tts"]["calls"])
+        self.assertEqual(1, snapshot["audio_activity"]["utterances_started"])
+        self.assertEqual(1, snapshot["audio_activity"]["interruption_signals"])
         self.assertEqual(25.0, snapshot["stages"]["tts"]["first_output_ms"])
         self.assertEqual(40.0, snapshot["stages"]["tts"]["last_ms"])
         self.assertTrue(snapshot["clean_shutdown"])

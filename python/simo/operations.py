@@ -39,6 +39,10 @@ class RuntimeMetrics:
         self._clean_shutdown = False
         self._errors_total = 0
         self._world_revision = 0
+        self._audio_activity: dict[str, int] = {
+            "utterances_started": 0,
+            "interruption_signals": 0,
+        }
         self._context_queue: dict[str, int] = {
             "depth": 0,
             "dropped": 0,
@@ -89,6 +93,12 @@ class RuntimeMetrics:
         with self._lock:
             self._errors_total += 1
 
+    def record_user_speech_start(self, *, interruption_signaled: bool) -> None:
+        with self._lock:
+            self._audio_activity["utterances_started"] += 1
+            if interruption_signaled:
+                self._audio_activity["interruption_signals"] += 1
+
     def update_runtime_state(
         self,
         *,
@@ -137,6 +147,7 @@ class RuntimeMetrics:
                 "uptime_ms": self._elapsed_ms(self._started_ns),
                 "errors_total": self._errors_total,
                 "world_revision": self._world_revision,
+                "audio_activity": dict(self._audio_activity),
                 "context_queue": dict(self._context_queue),
                 "observer_mailbox": dict(self._observer_mailbox),
                 "stages": {
