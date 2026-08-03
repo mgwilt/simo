@@ -2097,6 +2097,7 @@ name = "simo-tools"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "platformdirs" },
     { name = "pyyaml" },
     { name = "tiktoken" },
 ]
@@ -2125,6 +2126,7 @@ requires-dist = [
     { name = "nltk", marker = "extra == 'runtime'", specifier = ">=3.10.0,<3.10.1" },
     { name = "parakeet-mlx", marker = "extra == 'inference'", specifier = ">=0.5.2" },
     { name = "pipecat-ai", extras = ["local"], marker = "extra == 'runtime'", directory = "vendor/pipecat" },
+    { name = "platformdirs", specifier = ">=4.3,<5" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.14.14" },
     { name = "tiktoken", specifier = ">=0.13,<1" },

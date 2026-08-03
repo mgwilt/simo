@@ -19,6 +19,37 @@ uv run simo headless --transcript "hello" --transcript "remember the blue door"
 
 The headless command loads no speech or language model. It validates and projects repository OKF concepts into a typed Flecs graph, then drives final transcript frames through a real Pipecat pipeline, a bounded observer mailbox, ordered Flecs world progression, one immutable context injection per turn, deterministic text inference, PCM TTS frames, counters, and clean shutdown. The inference providers are test doubles, so this is not the live model or voice proof tracked by `W-20260802-finish-realtime-agent`.
 
+## Persisted aliases and conversations
+
+Simo stores aliases under the platform application-data directory (`~/Library/Application Support/Simo` on macOS) or an explicit `SIMO_DATA_DIR`/`--data-dir`. Create and inspect an alias without loading the native core or models:
+
+```sh
+uv run simo alias create Ada --summary "An analytical conversationalist" --json
+uv run simo alias list
+uv run simo alias show <alias-id> --json
+uv run simo alias revise-persona <alias-id> \
+  --summary "A playful analytical conversationalist" \
+  --instructions "Use concise examples and gentle humor"
+```
+
+Each alias has a stable UUID, immutable persona/runtime-profile versions, a human-readable manifest, and a private portable OKF 0.2 bundle. Export and import preserve those identities and version histories:
+
+```sh
+uv run simo alias export <alias-id> ./ada.simo-alias
+uv run simo --data-dir /tmp/another-simo alias import ./ada.simo-alias
+```
+
+Conversation identity and participant membership are indexed in the same local SQLite store:
+
+```sh
+uv run simo conversation create --alias <alias-id> --title "First meeting" --json
+uv run simo conversation list --alias <alias-id>
+uv run simo conversation show <conversation-id> --json
+uv run simo conversation delete <conversation-id> --yes
+```
+
+This foundation does not yet claim frame-to-transcript recording, restart-resumed inference, relationship learning, or WebRTC rooms; those remain later milestones in `W-20260802-conversational-identities`.
+
 ## Preflight
 
 ```sh
@@ -77,6 +108,7 @@ Environment overrides are parsed once into an immutable configuration:
 
 | Variable | Default |
 |---|---|
+| `SIMO_DATA_DIR` | platform application-data directory |
 | `SIMO_MODE` | `headless` |
 | `SIMO_CORE_LIBRARY` | auto-discovered under `.build/` |
 | `SIMO_MODELS_DIR` | `.models` |

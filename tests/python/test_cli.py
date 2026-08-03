@@ -4,8 +4,11 @@ import io
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 from simo.cli import main
@@ -14,6 +17,68 @@ from simo.doctor import DoctorReport
 
 
 class CliTests(unittest.TestCase):
+    def test_alias_and_conversation_commands_are_structured_and_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data_dir = Path(temporary) / "data"
+            alias_output = io.StringIO()
+            with redirect_stdout(alias_output):
+                status = main(
+                    [
+                        "--data-dir",
+                        str(data_dir),
+                        "alias",
+                        "create",
+                        "Ada",
+                        "--json",
+                    ]
+                )
+            alias = cast(dict[str, object], cast(object, json.loads(alias_output.getvalue())))
+            alias_id = cast(str, alias["alias_id"])
+            self.assertEqual(0, status)
+            self.assertEqual("Ada", alias["display_name"])
+
+            conversation_output = io.StringIO()
+            with redirect_stdout(conversation_output):
+                status = main(
+                    [
+                        "--data-dir",
+                        str(data_dir),
+                        "conversation",
+                        "create",
+                        "--alias",
+                        alias_id,
+                        "--title",
+                        "A durable conversation",
+                        "--json",
+                    ]
+                )
+            conversation = cast(
+                dict[str, object], cast(object, json.loads(conversation_output.getvalue()))
+            )
+            conversation_record = cast(dict[str, object], conversation["conversation"])
+            self.assertEqual(0, status)
+            self.assertEqual("A durable conversation", conversation_record["title"])
+
+            show_output = io.StringIO()
+            with redirect_stdout(show_output):
+                status = main(
+                    [
+                        "--data-dir",
+                        str(data_dir),
+                        "alias",
+                        "show",
+                        alias_id,
+                        "--json",
+                    ]
+                )
+            detail = cast(dict[str, object], cast(object, json.loads(show_output.getvalue())))
+            alias_detail = cast(dict[str, object], detail["alias"])
+            runtime_profiles = cast(list[object], detail["runtime_profiles"])
+            first_profile = cast(dict[str, object], runtime_profiles[0])
+            self.assertEqual(0, status)
+            self.assertEqual(1, alias_detail["active_persona_version"])
+            self.assertEqual(1, first_profile["version"])
+
     def test_doctor_json_is_machine_readable(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
