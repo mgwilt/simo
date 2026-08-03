@@ -1,0 +1,169 @@
+"""Truthful, side-effect-free runtime capability checks."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import platform
+import subprocess
+import sys
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+from simo.config import RunMode, RuntimeConfig
+from simo.context import find_core_library
+
+
+@dataclass(frozen=True, slots=True)
+class Check:
+    name: str
+    ok: bool
+    required: bool
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class DoctorReport:
+    mode: RunMode
+    ready: bool
+    checks: tuple[Check, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode.value,
+            "ready": self.ready,
+            "checks": [asdict(check) for check in self.checks],
+        }
+
+
+def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
+    """Inspect prerequisites without importing ML runtimes or loading weights."""
+
+    is_live = config.mode is RunMode.LIVE
+    checks = [
+        Check(
+            "platform",
+            sys.platform == "darwin",
+            True,
+            f"{platform.system()} {platform.release()}",
+        ),
+        Check(
+            "architecture",
+            platform.machine() == "arm64",
+            True,
+            _apple_hardware_detail(),
+        ),
+        _core_check(config),
+    ]
+    if is_live:
+        checks.extend(
+            _module_check(name, module)
+            for name, module in (
+                ("MLX-Audio", "mlx_audio"),
+                ("Parakeet MLX", "parakeet_mlx"),
+                ("MLX-LM", "mlx_lm"),
+            )
+        )
+        checks.append(_nltk_data_check())
+        checks.extend(
+            _model_check(name, model.local_path)
+            for name, model in (
+                ("TTS model", config.tts),
+                ("STT model", config.stt),
+                ("text model", config.text),
+            )
+        )
+    ready = all(check.ok for check in checks if check.required)
+    return DoctorReport(config.mode, ready, tuple(checks))
+
+
+def _core_check(config: RuntimeConfig) -> Check:
+    try:
+        path = find_core_library(config.core_library)
+    except FileNotFoundError as error:
+        return Check("native core", False, True, str(error))
+    return Check("native core", True, True, str(path))
+
+
+def _module_check(name: str, module: str) -> Check:
+    found = importlib.util.find_spec(module) is not None
+    detail = f"Python module {module} {'found' if found else 'not installed'}"
+    return Check(name, found, True, detail)
+
+
+def _model_check(name: str, path: Path) -> Check:
+    found = path.is_dir() and any(path.iterdir())
+    detail = str(path) if found else f"not downloaded at {path}"
+    return Check(name, found, True, detail)
+
+
+def _nltk_data_check() -> Check:
+    try:
+        spec = importlib.util.find_spec("nltk")
+        if spec is None:
+            raise LookupError
+        import nltk
+
+        location = nltk.data.find("tokenizers/punkt_tab")
+    except (ImportError, LookupError):
+        return Check(
+            "Pipecat sentence data",
+            False,
+            True,
+            "NLTK punkt_tab not installed; run: python -m nltk.downloader punkt_tab",
+        )
+    return Check("Pipecat sentence data", True, True, str(location))
+
+
+def _apple_hardware_detail() -> str:
+    profiler = _system_profiler_hardware()
+    if profiler:
+        name = profiler.get("machine_name", "Mac")
+        chip = profiler.get("chip_type", "Apple Silicon")
+        memory = profiler.get("physical_memory", "unknown memory")
+        return f"{platform.machine()}, {name}, {chip}, {memory} unified memory"
+    chip = _sysctl("machdep.cpu.brand_string") or platform.processor() or "unknown chip"
+    memory = _sysctl("hw.memsize")
+    if memory and memory.isdigit():
+        gibibytes = int(memory) / (1024**3)
+        return f"{platform.machine()}, {chip}, {gibibytes:.0f} GiB unified memory"
+    return f"{platform.machine()}, {chip}"
+
+
+def _system_profiler_hardware() -> dict[str, str] | None:
+    if sys.platform != "darwin":
+        return None
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/system_profiler", "SPHardwareDataType", "-json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(result.stdout)
+        hardware = payload["SPHardwareDataType"][0]
+    except (
+        FileNotFoundError,
+        subprocess.CalledProcessError,
+        json.JSONDecodeError,
+        KeyError,
+        IndexError,
+        TypeError,
+    ):
+        return None
+    allowed = ("machine_name", "chip_type", "physical_memory")
+    return {key: str(hardware[key]) for key in allowed if key in hardware}
+
+
+def _sysctl(name: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/sysctl", "-n", name],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+    return result.stdout.strip() or None

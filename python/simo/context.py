@@ -55,7 +55,10 @@ def _library_names() -> tuple[str, ...]:
     return ("libsimo_core.so",)
 
 
-def _find_library(explicit: str | os.PathLike[str] | None) -> Path:
+def find_core_library(
+    explicit: str | os.PathLike[str] | None = None,
+) -> Path:
+    """Locate the native Simo core without loading or mutating it."""
     if explicit is not None:
         candidate = Path(explicit).expanduser().resolve()
         if candidate.is_file():
@@ -64,10 +67,11 @@ def _find_library(explicit: str | os.PathLike[str] | None) -> Path:
 
     configured = os.environ.get("SIMO_CORE_LIBRARY")
     if configured:
-        return _find_library(configured)
+        return find_core_library(configured)
 
     repository = Path(__file__).resolve().parents[2]
     search_roots = (
+        repository / ".build" / "simo",
         repository / ".build" / "manual",
         repository / "build",
         repository / "build" / "lib",
@@ -128,7 +132,7 @@ class NativeContextEngine:
     ) -> None:
         if queue_capacity <= 0 or max_segments <= 0:
             raise ValueError("queue_capacity and max_segments must be positive")
-        self._library = ctypes.CDLL(str(_find_library(library_path)))
+        self._library = ctypes.CDLL(str(find_core_library(library_path)))
         _configure_library(self._library)
         handle = self._library.simo_context_engine_create(
             queue_capacity,

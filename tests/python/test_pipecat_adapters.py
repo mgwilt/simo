@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 import unittest
 import wave
+from pathlib import Path
 from typing import Self
+
+os.environ.setdefault(
+    "NLTK_DATA",
+    str(Path(__file__).resolve().parents[1] / "fixtures/nltk_data"),
+)
 
 from pipecat.frames.frames import (
     ErrorFrame,
