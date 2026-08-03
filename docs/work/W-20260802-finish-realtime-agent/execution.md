@@ -25,7 +25,7 @@ simo:
 | T-006 | Implement and harden the selected Mac-native TTS cancellation and interruption path | Partial A-004 and A-007; live proof pending | complete |
 | T-007 | Add observability, privacy defaults, shutdown, and operator documentation | Partial A-009 and A-010; live proof pending | complete |
 | T-008 | Prove unattended three-turn interruptible voice conversation on the declared Mac | A-007, A-008 | complete |
-| T-009 | Promote durable knowledge, independently verify, and close | A-010, A-011 | pending |
+| T-009 | Promote durable knowledge, independently verify, and close | A-010, A-011 | complete |
 | T-010 | Establish strict lint, format, and incremental type-safety regression gates | A-012 | complete |
 | T-011 | Condition Silero input and add an unattended playback-echo regression gate | A-013 | complete |
 | T-012 | Bound realtime response length and select TTS chunk interval by pinned-model measurement | A-014 | complete |

@@ -4,7 +4,7 @@ title: Finish Simo checkpoint
 description: Captures the current resumable product-completion state.
 tags: [work, checkpoint, product]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:53:48Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T04:09:36Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent-CHECKPOINT
@@ -15,8 +15,8 @@ simo:
 ---
 # Checkpoint
 
-- Base revision: `43c5523ef9b935f58a3c9474d7cc8bfa4eb69968`.
-- Dirty paths at activation: none.
+- Terminal implementation revision: `6907ee559664d1b443dab35c1f9ac65f0f22fa56`.
+- Dirty paths at activation: none; closure documentation is the only expected successor diff.
 - Completed predecessor: `W-20260802-semantic-context-spine` (`DOC-0002`, `DOC-0003`).
 - Completed: `T-001` selected the MLX-native Qwen3-TTS 0.6B CustomVoice 6-bit, Parakeet TDT 0.6B v3, and Qwen3.5 4B 4-bit defaults for the Apple M3 Ultra target.
 - Completed: `T-002` added the installed `simo` command, typed environment configuration, a truthful two-mode preflight, a system-compiler native build, and the deterministic headless lifecycle at `800e5d0`.
@@ -33,5 +33,6 @@ simo:
 - Completed bounded response tuning: live text output now defaults to `48` tokens instead of the adapter's general `256`; isolated pinned-model measurement selected a `0.24` second TTS interval over `0.32` and `0.16`. The balanced interval reduced first chunk from `95.21` to `78.72` ms with about `6%` total overhead; the post-change full proof recorded direct warm first audio at `252.31` ms. `A-014` is satisfied, while repeated p95 end-to-end latency remains unclaimed.
 - Completed quality gate: revision `8b1cb34` locks Ruff 0.12.11 and Pyright 1.1.411, passes the native build, 56 Python tests, first-party runtime type checking with zero findings, repository-wide first-party lint/format, 33-concept documentation validation, five knowledge regression tests, and whitespace validation. `A-004`, `A-009`, and `A-010` are now satisfied.
 - Completed strict static gate: on the working tree based at `4672689`, Ruff 0.14.14 selects `ALL` with documented Simo exclusions, `ty` 0.0.14 checks runtime/tests/scripts with warnings as errors, and BasedPyright 1.39.9 applies strict mode plus `reportAny` and `reportExplicitAny` against a checked-in 470-diagnostic baseline. The installed pre-commit launcher invokes Lefthook, and `--all-files` executes every configured pre-commit job; the installed pre-push launcher executes the native build, 61 Python tests, 35-concept documentation validation, and five knowledge tests. Managed `.git` permissions prevented Lefthook from replacing the already-installed launcher files. `A-012` is satisfied by `E-011`.
+- Terminal state: all acceptance and execution items are complete; the plan has released its mutation paths.
 - Blocker: none.
-- Next action: record per-turn latency distributions and prove cancellation during in-flight MLX generation. Do not claim stable p95 latency or subjective headset/room quality from one synthetic run.
+- Next action: create a successor Work Plan for persisted aliases, conversation history, relationship learning, LiveKit rooms, and autonomous tuning. Repeated per-turn p95 latency and in-flight Metal-kernel cancellation remain successor evidence, not retroactive claims here.

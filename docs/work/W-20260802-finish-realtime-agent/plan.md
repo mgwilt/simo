@@ -3,8 +3,9 @@ type: Work Plan
 title: Make the Simo macOS voice path reliable
 description: Tracks reliable conditioned Silero turns, echo-safe playback, unattended synthetic acceptance, and responsive local inference on the established Pipecat, Flecs, and OKF foundation.
 tags: [work, product, realtime, voice, flecs, pipecat, okf]
-status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:53:48Z }
+status: stable
+generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T04:09:36Z }
+verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T04:09:36Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-finish-realtime-agent
@@ -14,16 +15,16 @@ simo:
   work:
     schema_version: 1
     id: W-20260802-finish-realtime-agent
-    state: active
+    state: done
     mode: mutation
     priority: p1
     accountable: codex/gpt-5.6-sol
     created_at: 2026-08-03T00:02:13Z
-    updated_at: 2026-08-03T02:53:48Z
+    updated_at: 2026-08-03T04:09:36Z
     depends_on: [W-20260802-semantic-context-spine]
     knowledge_refs: [architecture/semantic-context-spine, interfaces/gepard-tts, governance/DOC-0001-documentation-and-work-management]
-    write_paths: [README.md, CMakeLists.txt, include/simo, src, python/simo, tests, scripts, docs, pyproject.toml, uv.lock, lefthook.yml]
-    next_action: Add per-turn latency distributions and prove cancellation during in-flight MLX generation; keep p95 acceptance separate from the completed three-turn functional gate.
+    write_paths: []
+    next_action: Open the successor conversational-identities Work Plan before adding persistence, multi-conversation routing, LiveKit rooms, learning, or autonomous tuning.
     blocker: null
 ---
 # Make the Simo macOS voice path reliable
