@@ -38,6 +38,18 @@ class FakeSynthesizer:
         yield AudioChunk(b"\x02\x00" * 240, self.sample_rate)
 
 
+class FakeEventSink:
+    def __init__(self) -> None:
+        self.generated: list[tuple[str, str]] = []
+        self.submitted: list[tuple[str, str]] = []
+
+    def assistant_generated(self, text: str, request_id: str) -> None:
+        self.generated.append((text, request_id))
+
+    def tts_submitted(self, text: str, request_id: str) -> None:
+        self.submitted.append((text, request_id))
+
+
 class LiveKitProviderTests(unittest.IsolatedAsyncioTestCase):
     async def test_stt_returns_final_attributed_local_transcript(self) -> None:
         recognizer = FakeRecognizer()
@@ -59,10 +71,12 @@ class LiveKitProviderTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_llm_injects_one_semantic_snapshot_into_chat_prompt(self) -> None:
         generator = FakeGenerator()
+        events = FakeEventSink()
         provider = LocalLLM(
             generator,
             max_tokens=48,
             context_provider=lambda: "Flecs snapshot revision 7",
+            event_sink=events,
         )
         chat_ctx = llm.ChatContext.empty()
         chat_ctx.add_message(role="system", content="Be concise")
@@ -77,10 +91,13 @@ class LiveKitProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("system: Be concise", prompt)
         self.assertIn("user: What do you remember?", prompt)
         self.assertEqual(48, max_tokens)
+        self.assertEqual("local reply", events.generated[0][0])
+        self.assertTrue(events.generated[0][1].startswith("simo-llm-"))
 
     async def test_tts_yields_livekit_audio_without_retaining_raw_audio(self) -> None:
         synthesizer = FakeSynthesizer()
-        provider = LocalTTS(synthesizer)
+        events = FakeEventSink()
+        provider = LocalTTS(synthesizer, event_sink=events)
 
         stream = provider.synthesize("Speak this")
         frames = [event.frame async for event in stream]
@@ -89,6 +106,8 @@ class LiveKitProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(sum(frame.samples_per_channel for frame in frames), 480)
         self.assertTrue(all(frame.sample_rate == 24_000 for frame in frames))
         self.assertTrue(all(frame.num_channels == 1 for frame in frames))
+        self.assertEqual("Speak this", events.submitted[0][0])
+        self.assertTrue(events.submitted[0][1].startswith("simo-tts-"))
 
     async def test_tts_rejects_provider_sample_rate_drift(self) -> None:
         provider = LocalTTS(FakeSynthesizer(sample_rate=16_000))

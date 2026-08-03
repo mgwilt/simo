@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
+from typing import Protocol
 from uuid import uuid4
 
 from livekit import rtc
@@ -18,6 +19,14 @@ from livekit.agents.types import (
 from simo.inference import AudioChunk, SpeechRecognizer, SpeechSynthesizer, TextGenerator
 
 SemanticContextProvider = Callable[[], str]
+
+
+class InferenceEventSink(Protocol):
+    """Non-blocking observation boundary for local inference lifecycle events."""
+
+    def assistant_generated(self, text: str, request_id: str) -> None: ...
+
+    def tts_submitted(self, text: str, request_id: str) -> None: ...
 
 
 class LocalSTT(stt.STT[str]):
@@ -110,6 +119,7 @@ class LocalLLM(llm.LLM[str]):
         max_tokens: int = 256,
         model: str = "mlx-lm",
         context_provider: SemanticContextProvider | None = None,
+        event_sink: InferenceEventSink | None = None,
     ) -> None:
         if max_tokens <= 0:
             raise ValueError("LLM max_tokens must be positive")
@@ -120,6 +130,7 @@ class LocalLLM(llm.LLM[str]):
         self._max_tokens = max_tokens
         self._model_name = model
         self._context_provider = context_provider
+        self._event_sink = event_sink
 
     @property
     def model(self) -> str:
@@ -172,6 +183,10 @@ class LocalLLM(llm.LLM[str]):
             max_tokens=self._max_tokens,
         )
 
+    def observe_generated(self, text: str, request_id: str) -> None:
+        if self._event_sink is not None:
+            self._event_sink.assistant_generated(text, request_id)
+
 
 class _LocalLLMStream(llm.LLMStream):
     def __init__(
@@ -193,9 +208,11 @@ class _LocalLLMStream(llm.LLMStream):
     async def _run(self) -> None:
         response = await self._provider.generate(self.chat_ctx)
         if response:
+            request_id = f"simo-llm-{uuid4().hex}"
+            self._provider.observe_generated(response, request_id)
             self._event_ch.send_nowait(
                 llm.ChatChunk(
-                    id=f"simo-llm-{uuid4().hex}",
+                    id=request_id,
                     delta=llm.ChoiceDelta(role="assistant", content=response),
                 )
             )
@@ -210,6 +227,7 @@ class LocalTTS(tts.TTS[str]):
         *,
         sample_rate: int = 24_000,
         model: str = "qwen3-tts-mlx",
+        event_sink: InferenceEventSink | None = None,
     ) -> None:
         if sample_rate <= 0:
             raise ValueError("TTS sample rate must be positive")
@@ -222,6 +240,7 @@ class LocalTTS(tts.TTS[str]):
         )
         self._synthesizer = synthesizer
         self._model_name = model
+        self._event_sink = event_sink
 
     @property
     def model(self) -> str:
@@ -243,6 +262,10 @@ class LocalTTS(tts.TTS[str]):
         """Yield model audio through Simo's provider-neutral contract."""
 
         return self._synthesizer.synthesize(text)
+
+    def observe_submitted(self, text: str, request_id: str) -> None:
+        if self._event_sink is not None:
+            self._event_sink.tts_submitted(text, request_id)
 
 
 class _LocalChunkedStream(tts.ChunkedStream):
@@ -269,6 +292,7 @@ class _LocalChunkedStream(tts.ChunkedStream):
             mime_type="audio/pcm",
             stream=False,
         )
+        self._provider.observe_submitted(self.input_text, request_id)
         async for chunk in self._provider.audio(self.input_text):
             if chunk.sample_rate != self._provider.sample_rate:
                 raise ValueError(
