@@ -1,0 +1,164 @@
+"""No-model Pipecat providers and acceptance-pipeline runner."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, cast
+
+from pipecat.clocks.system_clock import SystemClock
+from pipecat.frames.frames import (
+    EndFrame,
+    Frame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    LLMTextFrame,
+    StartFrame,
+    TTSAudioRawFrame,
+    TranscriptionFrame,
+)
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.processors.frame_processor import (
+    FrameDirection,
+    FrameProcessor,
+    FrameProcessorSetup,
+)
+from pipecat.utils.asyncio.task_manager import TaskManager
+
+from simo.adapters.pipecat.observer import PipecatSemanticObserver
+from simo.adapters.pipecat.semantic_turn import SemanticTurnFrame, SemanticTurnProcessor
+from simo.context import NativeContextEngine
+from simo.observation import BoundedTranscriptMailbox, FinalTranscriptObservationBridge
+
+
+class DeterministicTextInference(FrameProcessor):
+    """Emit a stable response that demonstrably consumes semantic context."""
+
+    def __init__(self, *, max_context_age_ms: int = 1_000) -> None:
+        super().__init__(enable_direct_mode=True)
+        self._max_context_age_ms = max_context_age_ms
+        self.turns: list[SemanticTurnFrame] = []
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+        if direction is FrameDirection.DOWNSTREAM and isinstance(frame, SemanticTurnFrame):
+            frame.context.require_fresh(self._max_context_age_ms)
+            self.turns.append(frame)
+            response = (
+                f"Context revision {frame.context.revision} has "
+                f"{len(frame.context.items)} item(s). You said: {frame.user_text}"
+            )
+            await self.push_frame(LLMFullResponseStartFrame(), direction)
+            await self.push_frame(LLMTextFrame(text=response), direction)
+            await self.push_frame(LLMFullResponseEndFrame(), direction)
+            return
+        await self.push_frame(frame, direction)
+
+
+class DeterministicTTS(FrameProcessor):
+    """Turn LLM text into deterministic mono PCM frames without a model."""
+
+    def __init__(self, *, sample_rate: int = 24_000) -> None:
+        super().__init__(enable_direct_mode=True)
+        self.sample_rate = sample_rate
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+        await self.push_frame(frame, direction)
+        if direction is FrameDirection.DOWNSTREAM and isinstance(frame, LLMTextFrame):
+            samples = max(1, len(frame.text))
+            await self.push_frame(
+                TTSAudioRawFrame(
+                    audio=b"\x01\x00" * samples,
+                    sample_rate=self.sample_rate,
+                    num_channels=1,
+                    context_id=str(frame.id),
+                ),
+                direction,
+            )
+
+
+class FrameCollector(FrameProcessor):
+    def __init__(self) -> None:
+        super().__init__(enable_direct_mode=True)
+        self.frames: list[Frame] = []
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+        if direction is FrameDirection.DOWNSTREAM:
+            self.frames.append(frame)
+        await self.push_frame(frame, direction)
+
+
+@dataclass(frozen=True, slots=True)
+class DeterministicPipelineResult:
+    frames: tuple[Frame, ...]
+    turns: tuple[SemanticTurnFrame, ...]
+    injection_count: int
+    observation_accepted: int
+    observation_duplicates: int
+    engine_revision: int
+    engine_dropped: int
+    observer_mailbox_dropped: int
+    observer_mailbox_queued: int
+
+
+async def run_deterministic_pipeline(
+    engine: NativeContextEngine,
+    transcripts: list[str],
+    *,
+    max_prompt_chars: int = 8_000,
+    max_context_age_ms: int = 1_000,
+) -> DeterministicPipelineResult:
+    """Run final transcripts through Pipecat, Flecs, fake LLM, and fake TTS."""
+
+    mailbox = BoundedTranscriptMailbox()
+    bridge = FinalTranscriptObservationBridge(mailbox)
+    semantic_turn = SemanticTurnProcessor(
+        engine,
+        bridge,
+        mailbox,
+        max_prompt_chars=max_prompt_chars,
+    )
+    inference = DeterministicTextInference(max_context_age_ms=max_context_age_ms)
+    tts = DeterministicTTS()
+    collector = FrameCollector()
+    pipeline = Pipeline([semantic_turn, inference, tts, collector])
+    clock = SystemClock()
+    clock.start()
+    setup = FrameProcessorSetup(
+        clock=clock,
+        task_manager=TaskManager(),
+        pipeline_worker=cast(Any, object()),
+        observer=PipecatSemanticObserver(bridge=bridge),
+    )
+    frames = [
+        TranscriptionFrame(
+            text=text,
+            user_id="user",
+            timestamp=f"turn-{index}",
+            finalized=True,
+        )
+        for index, text in enumerate(transcripts, start=1)
+    ]
+    await pipeline.setup(setup)
+    try:
+        await pipeline.queue_frame(StartFrame())
+        for frame in frames:
+            await pipeline.queue_frame(frame)
+        await pipeline.queue_frame(EndFrame())
+    finally:
+        await pipeline.cleanup()
+    observation = bridge.stats()
+    engine_stats = engine.stats()
+    mailbox_stats = mailbox.stats()
+    return DeterministicPipelineResult(
+        frames=tuple(collector.frames),
+        turns=tuple(inference.turns),
+        injection_count=semantic_turn.injection_count,
+        observation_accepted=observation.accepted,
+        observation_duplicates=observation.duplicate,
+        engine_revision=int(engine.snapshot()["revision"]),
+        engine_dropped=engine_stats.dropped,
+        observer_mailbox_dropped=mailbox_stats.dropped,
+        observer_mailbox_queued=mailbox_stats.queued,
+    )

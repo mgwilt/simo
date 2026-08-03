@@ -32,12 +32,15 @@ class CliTests(unittest.TestCase):
             )
         result = json.loads(output.getvalue())
         self.assertEqual(0, status)
-        self.assertEqual(1, result["snapshot"]["revision"])
+        self.assertEqual(2, result["snapshot"]["revision"])
         self.assertEqual(
             ["hello", "remember the blue door"],
             [item["text"] for item in result["snapshot"]["items"]],
         )
         self.assertEqual(2, result["stats"]["processed"])
+        self.assertEqual(2, result["pipeline"]["context_injections"])
+        self.assertEqual(2, result["pipeline"]["llm_text_frames"])
+        self.assertEqual(2, result["pipeline"]["tts_audio_frames"])
 
 
 if __name__ == "__main__":

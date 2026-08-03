@@ -20,6 +20,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(PARAKEET_STT_MODEL, config.stt.model_id)
         self.assertEqual(QWEN_TEXT_MODEL, config.text.model_id)
         self.assertEqual(config.repository / ".models", config.models_dir)
+        self.assertEqual(8_000, config.context_max_chars)
+        self.assertEqual(1_000, config.context_max_age_ms)
 
     def test_environment_overrides_are_typed_once(self) -> None:
         config = RuntimeConfig.from_environment(
@@ -29,12 +31,16 @@ class RuntimeConfigTests(unittest.TestCase):
                 "SIMO_CORE_LIBRARY": "/tmp/libsimo-test.dylib",
                 "SIMO_QUEUE_CAPACITY": "12",
                 "SIMO_MAX_SEGMENTS": "7",
+                "SIMO_CONTEXT_MAX_CHARS": "500",
+                "SIMO_CONTEXT_MAX_AGE_MS": "250",
                 "SIMO_TTS_MODEL": "example/tts",
             }
         )
         self.assertEqual(RunMode.LIVE, config.mode)
         self.assertEqual(12, config.queue_capacity)
         self.assertEqual(7, config.max_segments)
+        self.assertEqual(500, config.context_max_chars)
+        self.assertEqual(250, config.context_max_age_ms)
         self.assertEqual(Path("/tmp/libsimo-test.dylib"), config.core_library)
         self.assertEqual(Path("/tmp/simo-test-models/tts"), config.tts.local_path)
 

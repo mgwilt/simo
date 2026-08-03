@@ -36,6 +36,8 @@ class RuntimeConfig:
     core_library: Path | None
     queue_capacity: int
     max_segments: int
+    context_max_chars: int
+    context_max_age_ms: int
     tts: ModelConfig
     stt: ModelConfig
     text: ModelConfig
@@ -54,6 +56,10 @@ class RuntimeConfig:
         selected_mode = RunMode(mode or values.get("SIMO_MODE", RunMode.HEADLESS))
         queue_capacity = _positive_integer(values, "SIMO_QUEUE_CAPACITY", 256)
         max_segments = _positive_integer(values, "SIMO_MAX_SEGMENTS", 64)
+        context_max_chars = _positive_integer(values, "SIMO_CONTEXT_MAX_CHARS", 8_000)
+        context_max_age_ms = _positive_integer(
+            values, "SIMO_CONTEXT_MAX_AGE_MS", 1_000
+        )
 
         def model(env_name: str, default_id: str) -> ModelConfig:
             model_id = values.get(env_name, default_id).strip()
@@ -69,6 +75,8 @@ class RuntimeConfig:
             core_library=Path(configured_library) if configured_library else None,
             queue_capacity=queue_capacity,
             max_segments=max_segments,
+            context_max_chars=context_max_chars,
+            context_max_age_ms=context_max_age_ms,
             tts=model("SIMO_TTS_MODEL", QWEN_TTS_MODEL),
             stt=model("SIMO_STT_MODEL", PARAKEET_STT_MODEL),
             text=model("SIMO_TEXT_MODEL", QWEN_TEXT_MODEL),

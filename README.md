@@ -16,7 +16,7 @@ uv run simo doctor
 uv run simo headless --transcript "hello" --transcript "remember the blue door"
 ```
 
-The headless command loads no speech or language model. It proves configuration, native Flecs lifecycle, bounded transcript ingress, world progression, immutable snapshot output, counters, and clean shutdown. It is not yet the complete Pipecat or live voice proof tracked by `W-20260802-finish-realtime-agent`.
+The headless command loads no speech or language model. It drives final transcript frames through a real Pipecat pipeline, a bounded observer mailbox, ordered Flecs world progression, one immutable context injection per turn, deterministic text inference, PCM TTS frames, counters, and clean shutdown. The inference providers are test doubles, so this is not the live model or voice proof tracked by `W-20260802-finish-realtime-agent`.
 
 ## Preflight
 
@@ -36,6 +36,8 @@ Environment overrides are parsed once into an immutable configuration:
 | `SIMO_MODELS_DIR` | `.models` |
 | `SIMO_QUEUE_CAPACITY` | `256` |
 | `SIMO_MAX_SEGMENTS` | `64` |
+| `SIMO_CONTEXT_MAX_CHARS` | `8000` |
+| `SIMO_CONTEXT_MAX_AGE_MS` | `1000` |
 | `SIMO_TTS_MODEL` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` |
 | `SIMO_STT_MODEL` | `mlx-community/parakeet-tdt-0.6b-v3` |
 | `SIMO_TEXT_MODEL` | `mlx-community/Qwen3.5-4B-4bit` |

@@ -3,7 +3,8 @@ from __future__ import annotations
 import unittest
 
 from simo.context import EnqueueResult
-from simo.observation import FinalTranscriptObservationBridge
+from simo.context import DropPolicy
+from simo.observation import BoundedTranscriptMailbox, FinalTranscriptObservationBridge
 
 
 class RecordingSink:
@@ -47,6 +48,18 @@ class ObservationBridgeTests(unittest.TestCase):
         bridge.observe(frame_key="two", speaker="user", text="two", is_final=True)
         bridge.observe(frame_key="one", speaker="user", text="one again", is_final=True)
         self.assertEqual(3, len(sink.calls))
+
+    def test_observer_mailbox_bounds_run_ahead_and_promotes_by_key(self) -> None:
+        mailbox = BoundedTranscriptMailbox(
+            capacity=1,
+            drop_policy=DropPolicy.DROP_OLDEST,
+        )
+        bridge = FinalTranscriptObservationBridge(mailbox)
+        bridge.observe(frame_key="one", speaker="user", text="one", is_final=True)
+        bridge.observe(frame_key="two", speaker="user", text="two", is_final=True)
+        self.assertIsNone(mailbox.pop("one"))
+        self.assertEqual("two", mailbox.pop("two").text)  # type: ignore[union-attr]
+        self.assertEqual(1, mailbox.stats().dropped)
 
 
 if __name__ == "__main__":

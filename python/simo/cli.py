@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from collections.abc import Sequence
@@ -45,8 +46,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not report.ready:
                 _print_report(report, False)
                 return 1
-            result = HeadlessRuntime(config).run(args.transcript)
-            print(json.dumps({"snapshot": result.snapshot, "stats": result.stats}))
+            result = asyncio.run(HeadlessRuntime(config).run(args.transcript))
+            print(
+                json.dumps(
+                    {
+                        "snapshot": result.snapshot,
+                        "stats": result.stats,
+                        "pipeline": result.pipeline,
+                    }
+                )
+            )
             return 0
     except (FileNotFoundError, RuntimeError, ValueError) as error:
         print(f"simo: {error}", file=sys.stderr)

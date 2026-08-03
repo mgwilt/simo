@@ -11,12 +11,25 @@ from simo.observation import FinalTranscriptObservationBridge, TranscriptSink
 class PipecatSemanticObserver(BaseObserver):
     """Observe final transcript frames without mutating Flecs or blocking the pipeline."""
 
-    def __init__(self, sink: TranscriptSink, *, dedupe_capacity: int = 2_048) -> None:
+    def __init__(
+        self,
+        sink: TranscriptSink | None = None,
+        *,
+        bridge: FinalTranscriptObservationBridge | None = None,
+        dedupe_capacity: int = 2_048,
+    ) -> None:
         super().__init__()
-        self._bridge = FinalTranscriptObservationBridge(
-            sink,
-            dedupe_capacity=dedupe_capacity,
-        )
+        if bridge is not None:
+            if sink is not None:
+                raise ValueError("provide sink or bridge, not both")
+            self._bridge = bridge
+        elif sink is not None:
+            self._bridge = FinalTranscriptObservationBridge(
+                sink,
+                dedupe_capacity=dedupe_capacity,
+            )
+        else:
+            raise ValueError("sink or bridge is required")
 
     @property
     def semantic_bridge(self) -> FinalTranscriptObservationBridge:
