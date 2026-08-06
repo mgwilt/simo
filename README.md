@@ -1,5 +1,10 @@
 # Simo
 
+> [!WARNING]
+> **Gigaslop ahead.** This repository is a playground for experimenting with local voice
+> orchestration, not production-ready software. Expect rough edges, changing interfaces, and ideas
+> that may be replaced as quickly as they are tested.
+
 Simo is an experimental local voice-agent runtime for Apple Silicon Macs. It combines a
 self-hosted LiveKit audio path, local MLX models, a small native Flecs context core, and local
 persistence for conversational identities and memory.
