@@ -30,16 +30,16 @@ weights. Run `uv run python scripts/setup_models.py` to inspect the current plan
 
 ## Why Flecs?
 
-Flecs is Simo's live semantic state plane. Each conversation gets a bounded in-memory world for its
-participants, final transcript segments, active memory claims, and the relations between them. One
-runtime owner mutates that world and produces revisioned, immutable snapshots for inference; model
-code never receives Flecs entity handles or mutable components.
-
-This keeps responsibilities separate: LiveKit moves realtime audio, SQLite stores durable local
-conversation data, the OKF bundle holds reviewable project knowledge, and Flecs organizes the
-small amount of state needed during an active run. The goal is to make context updates explicit,
-scoped, and testable rather than treating the prompt or a loose Python dictionary as the runtime's
-source of truth.
+[Flecs](https://github.com/SanderMertens/flecs) is a strong fit for Simo's live semantic state
+because an entity-component system makes changing context explicit and composable: conversations,
+participants, transcript segments, and memory claims can remain small typed components and
+relations, while systems query and update only the shapes they care about instead of growing one
+central session object or passing loose dictionaries between stages. In Simo, that means one
+bounded in-memory world per conversation, one mutation owner, and revisioned immutable snapshots
+at the model boundary, so inference code never receives native entity handles or mutable state.
+LiveKit still owns realtime audio, SQLite owns durable local data, and the OKF bundle holds
+reviewable project knowledge; the extra native complexity buys a context plane intended to remain
+inspectable, scoped, and testable as orchestration behavior grows.
 
 ## Requirements
 
