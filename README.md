@@ -13,6 +13,34 @@ The repository currently includes a command-line interface for headless runs, pe
 and conversations, deterministic text turns, and local headset sessions. It is still a prototype:
 interfaces and stored data may change, and the live voice path requires an explicit model download.
 
+## Local model matrix
+
+These are the default models selected in `python/simo/config.py`. Each model ID and revision can be
+overridden through the corresponding `SIMO_*_MODEL` and `SIMO_*_REVISION` environment variables.
+
+| Role | Default model | Runtime | Intent |
+| --- | --- | --- | --- |
+| Speech to text | `mlx-community/parakeet-tdt-0.6b-v3` | Parakeet MLX | Transcribe local microphone or room audio |
+| Language model | `mlx-community/Qwen3.5-4B-4bit` | MLX-LM | Generate short, context-aware replies locally |
+| Text to speech | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` | MLX-Audio | Stream the alias's spoken response; default voice is `Aiden` |
+| Voice activity detection | Silero VAD | LiveKit Agents Silero plugin | Detect speech turns and interruptions before transcription |
+
+The setup script pins exact revisions and requires an explicit flag before downloading model
+weights. Run `uv run python scripts/setup_models.py` to inspect the current plan.
+
+## Why Flecs?
+
+Flecs is Simo's live semantic state plane. Each conversation gets a bounded in-memory world for its
+participants, final transcript segments, active memory claims, and the relations between them. One
+runtime owner mutates that world and produces revisioned, immutable snapshots for inference; model
+code never receives Flecs entity handles or mutable components.
+
+This keeps responsibilities separate: LiveKit moves realtime audio, SQLite stores durable local
+conversation data, the OKF bundle holds reviewable project knowledge, and Flecs organizes the
+small amount of state needed during an active run. The goal is to make context updates explicit,
+scoped, and testable rather than treating the prompt or a loose Python dictionary as the runtime's
+source of truth.
+
 ## Requirements
 
 For the headless and deterministic paths:
