@@ -4,7 +4,7 @@ title: Conversational identities verification
 description: Records proportional checks for alias persistence, conversation behavior, learning, WebRTC rooms, and autonomous improvement.
 tags: [work, verification, aliases, conversation, livekit]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T14:25:21Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-VERIFICATION
@@ -27,7 +27,7 @@ simo:
 
 `E-006` verifies `A-008` at `6499101`: two distinct Simo processes with private stores and personas joined one self-hosted room, ran local Qwen TTS through WebRTC, remote-only audio subscription, Silero, Parakeet, Flecs context, and local Qwen text generation, and persisted attributed review transcripts with no identity, self-echo, duplicate, incomplete-generation, or raw-audio failures. The local headset startup slice at `fac700e` additionally verifies native PlatformAudio device selection and a distinct human participant, but does not claim human conversational quality.
 
-`E-007` verifies `A-016` from the dirty implementation based on `f5a039f`: pinned Breeze source and model load on PyTorch MPS, report exact health metadata, and produce 24 kHz PCM through the Simo service contract. Its full benchmark records p95 first audio of 71.873 seconds and p95 RTF of 13.511, so both preview performance limits fail. It partially supports `A-017`: CA-validated HTTPS health/static routing passed on `192.168.1.84`; session retries now follow the browser's validated hostname/IP while retaining one fixed participant identity; physical Safari trust, microphone, WebRTC audio, and interruption remain unverified.
+`E-007` verifies `A-016` from Simo implementation `c037f5f` and owned fork `a38d7d1`: the pinned Breeze source and model load on PyTorch MPS, report exact health metadata, and produce 24 kHz PCM through the Simo service contract. The fork itself passes 31 tests; one uncached fork-native request returned 23,040 PCM bytes. Its full benchmark records p95 first audio of 71.873 seconds and p95 RTF of 13.511, so both preview performance limits fail. It partially supports `A-017`: CA-validated HTTPS health/static routing passed on `192.168.1.84`; session retries now follow the browser's validated hostname/IP while retaining one fixed participant identity; physical Safari trust, microphone, WebRTC audio, and interruption remain unverified.
 
 The predecessor separately proves one process-local in-memory voice session, conditioned Silero, echo suppression, real local inference, and strict regression gates. Evidence composition does not substitute for executing the entire WebRTC model loop in one run.
 

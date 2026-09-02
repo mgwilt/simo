@@ -4,7 +4,7 @@ title: Conversational identities acceptance
 description: Defines executable evidence for durable aliases, multi-turn history, learning, WebRTC pairing, and autonomous improvement.
 tags: [work, acceptance, aliases, conversation, livekit, evaluation]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T14:25:21Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-ACCEPTANCE
@@ -30,7 +30,7 @@ simo:
 - [ ] **A-013 — Reproducible quality:** Native/Python tests, strict static gates, documentation validation, knowledge regression, synthetic proofs, and privacy checks pass from pinned dependencies without human participation.
 - [ ] **A-014 — Publication:** Each bounded milestone has a conventional commit; closure records immutable references or a truthful no-publication reason and leaves no unexplained repository changes.
 - [ ] **A-015 — Single realtime owner:** LiveKit Agents owns room I/O, VAD, turn state, interruption, STT/LLM/TTS scheduling, and session events; Simo retains Flecs, persistence, knowledge, policy, and evaluation; no Pipecat runtime dependency, adapter, submodule, or current architecture claim remains after replacement evidence passes.
-- [x] **A-016 — Breeze Apple Silicon execution:** The pinned official Breeze-TTS-2 source and model load through an isolated loopback service on the declared M3 Ultra, produce non-empty 24 kHz PCM through Simo's TTS contract, preserve immutable v1/Qwen rollback profiles, and report a 3-warmup/10-sample benchmark truthfully. Proven by `E-007`; the measured preview performance gate failed and is not waived or relabeled.
+- [x] **A-016 — Breeze Apple Silicon execution:** The pinned owned Breeze MPS fork, its official upstream base, and the exact model load through an isolated loopback service on the declared M3 Ultra, produce non-empty 24 kHz PCM through Simo's TTS contract, preserve immutable v1/Qwen rollback profiles, and report a 3-warmup/10-sample benchmark truthfully. Proven by `E-007`; the measured preview performance gate failed and is not waived or relabeled.
 - [ ] **A-017 — Trusted LAN browser conversation:** Caddy serves the built site and session API over certificate-validated HTTPS on the non-loopback LAN address, LiveKit advertises LAN media ports while secrets and model services remain loopback-only, and a physical Safari client proves microphone publication, alias audio playout, interruption, and clean disconnect. `E-007` proves host routing and the one-client token boundary; physical device trust and media acceptance remain open.
 
 `E-005` is historical predecessor evidence for the underlying transport. `E-006` supersedes it for `A-008` with the replacement LiveKit Agents model loop. Neither closes `A-015`, which additionally requires complete Pipecat removal.

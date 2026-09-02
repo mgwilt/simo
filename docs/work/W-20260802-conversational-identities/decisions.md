@@ -4,7 +4,7 @@ title: Conversational identities decisions
 description: Records locked storage, identity, learning, LiveKit Agents ownership, privacy, and promotion choices.
 tags: [work, decisions, aliases, okf, livekit, evaluation]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T14:25:21Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-DECISIONS
@@ -57,7 +57,7 @@ Promotion target: [LiveKit Agents runtime](../../architecture/livekit-agents-run
 
 ## D-010: Default to pinned Breeze with immutable Qwen rollback
 
-New runtime profiles use the exact Breeze-TTS-2 model revision through an isolated loopback-only PyTorch service. Simo's in-process TTS adapter remains cancellation-aware and bounded, while v1 profiles continue to resolve to the former MLX-Audio Qwen voice. The vendored Breeze source remains unmodified; Apple Silicon compatibility belongs to Simo's wrapper.
+New runtime profiles use the exact Breeze-TTS-2 model revision through an isolated loopback-only PyTorch service. Simo's in-process TTS adapter remains cancellation-aware and bounded, while v1 profiles continue to resolve to the former MLX-Audio Qwen voice. Apple Silicon compatibility belongs to the owned `mgwilt/breeze-tts-mps` fork pinned as a submodule; the Simo launcher retains only loopback and health policy.
 
 The declared preview gate is p95 first audio at most 2 seconds and p95 RTF at most 1.5. The M3 Ultra eager result failed both limits by a wide margin, but the operator explicitly chose to retain Breeze. Performance failure therefore remains visible evidence rather than silently selecting Qwen or claiming readiness.
 

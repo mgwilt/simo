@@ -9,4 +9,4 @@
 	url = https://github.com/GoogleCloudPlatform/knowledge-catalog.git
 [submodule "vendor/breeze-tts"]
 	path = vendor/breeze-tts
-	url = https://github.com/breezeblue-ai/breeze-tts.git
+	url = https://github.com/mgwilt/breeze-tts-mps.git
