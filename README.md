@@ -22,7 +22,7 @@ overridden through the corresponding `SIMO_*_MODEL` and `SIMO_*_REVISION` enviro
 | --- | --- | --- | --- |
 | Speech to text | `mlx-community/parakeet-tdt-0.6b-v3` | Parakeet MLX | Transcribe local microphone or room audio |
 | Language model | `mlx-community/Qwen3.5-4B-4bit` | MLX-LM | Generate short, context-aware replies locally |
-| Text to speech | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` | MLX-Audio | Stream the alias's spoken response; default voice is `Aiden` |
+| Text to speech | `BreezeBlue/Breeze-TTS-2` | Isolated PyTorch MPS service | Generate designed alias speech locally; current eager MPS path is functional but not realtime |
 | Voice activity detection | Silero VAD | LiveKit Agents Silero plugin | Detect speech turns and interruptions before transcription |
 
 The setup script pins exact revisions and requires an explicit flag before downloading model
@@ -51,7 +51,8 @@ For the headless and deterministic paths:
 - Apple Command Line Tools or Xcode
 
 Live voice also requires an Apple Silicon Mac, LiveKit Server, and the optional MLX dependencies
-and models described below.
+and models described below. Breeze-TTS-2 use is subject to its separate non-commercial model
+license.
 
 ## Setup
 
@@ -120,6 +121,33 @@ uv run simo conversation export <conversation-id> ./conversation.json
 See the [headset operation guide](docs/operations/livekit-headset-talk.md) for device selection,
 resuming conversations, and the current verification boundary.
 
+## LAN browser voice
+
+The browser site serves one persisted alias to one Mac, iPhone, or iPad on the same trusted local
+network. It uses HTTPS/WSS, retryable room tokens for one fixed browser identity, audio-only counterpart allow lists, and
+keeps Breeze and internal services on loopback.
+
+```sh
+brew install caddy mkcert
+uv sync --project services/breeze --frozen
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+uv run python scripts/setup_lan_tls.py
+uv run python scripts/setup_lan_tls.py --accept-install
+
+services/breeze/.venv/bin/python services/breeze/serve.py \
+  .models/Breeze-TTS-2 --host 127.0.0.1 --port 7860 --device mps
+
+uv run simo serve --alias <alias-id> \
+  --cert .artifacts/lan-tls/simo-lan.pem \
+  --key .artifacts/lan-tls/simo-lan-key.pem
+```
+
+The measured M3 Ultra eager path has p95 first audio of 71.87 seconds and p95 RTF of 13.51. It is
+kept as the requested default despite missing the preview target; set `SIMO_TTS_BACKEND=qwen` to
+use the former MLX-Audio backend in a new process. See the [LAN operation guide](docs/operations/lan-voice-site.md)
+for device CA trust, ports, shutdown, and the remaining physical Safari acceptance step.
+
 ## Commands
 
 | Command | Purpose |
@@ -130,6 +158,8 @@ resuming conversations, and the current verification boundary.
 | `simo conversation` | Create, inspect, export, resume, and delete conversations |
 | `simo memory` | Inspect, correct, and forget retained claims |
 | `simo talk` | Run synthetic turns or a local LiveKit headset session |
+| `simo serve` | Serve one alias to one trusted-LAN HTTPS/WSS browser |
+| `simo breeze` | Inspect and benchmark the local Breeze-TTS-2 sidecar |
 | `simo lab` | Run bounded LiveKit and multi-alias experiments |
 | `simo prove-models` | Exercise the configured STT, text, and TTS models without audio devices |
 

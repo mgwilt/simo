@@ -25,12 +25,12 @@ import yaml
 from platformdirs import user_data_path
 
 from simo.config import (
+    BREEZE_TTS_MODEL,
+    BREEZE_TTS_REVISION,
     PARAKEET_STT_MODEL,
     PARAKEET_STT_REVISION,
     QWEN_TEXT_MODEL,
     QWEN_TEXT_REVISION,
-    QWEN_TTS_MODEL,
-    QWEN_TTS_REVISION,
 )
 
 SCHEMA_VERSION: Final = 2
@@ -240,13 +240,21 @@ def default_runtime_profile() -> dict[str, object]:
     """Return the immutable initial Mac-native profile for a new alias."""
 
     return {
-        "schema": "simo.runtime-profile.v1",
+        "schema": "simo.runtime-profile.v2",
         "models": {
-            "tts": {"id": QWEN_TTS_MODEL, "revision": QWEN_TTS_REVISION},
+            "tts": {"id": BREEZE_TTS_MODEL, "revision": BREEZE_TTS_REVISION},
             "stt": {"id": PARAKEET_STT_MODEL, "revision": PARAKEET_STT_REVISION},
             "text": {"id": QWEN_TEXT_MODEL, "revision": QWEN_TEXT_REVISION},
         },
-        "voice": "Aiden",
+        "tts": {
+            "backend": "breeze",
+            "mode": "voice_design",
+            "instruction": (
+                "A warm, thoughtful voice with clear diction and a calm, natural delivery."
+            ),
+            "cfg_scale": 4.0,
+            "seed": 42,
+        },
         "vad": {
             "confidence": 0.1,
             "start_ms": 32,

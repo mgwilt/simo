@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import http.client
 import queue
 import threading
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlencode, urlparse
 
 
 class SpeechRecognizer(Protocol):
@@ -217,6 +219,154 @@ class MLXAudioSynthesizer:
             else:
                 self._model = loader(str(self._model_path))
         return self._model
+
+    @staticmethod
+    def _bounded_put(
+        chunks: queue.Queue[AudioChunk | Exception | object],
+        value: AudioChunk | Exception | object,
+        cancelled: threading.Event,
+        *,
+        final: bool = False,
+    ) -> bool:
+        while final or not cancelled.is_set():
+            try:
+                chunks.put(value, timeout=0.05)
+                return True
+            except queue.Full:
+                if final and cancelled.is_set():
+                    try:
+                        chunks.get_nowait()
+                    except queue.Empty:
+                        pass
+        return False
+
+
+class BreezeHTTPSynthesizer:
+    """Stream Breeze PCM from the isolated loopback inference sidecar."""
+
+    _END = object()
+
+    def __init__(
+        self,
+        endpoint: str,
+        *,
+        instruction: str,
+        cfg_scale: float = 4.0,
+        seed: int = 42,
+        timeout_s: float = 180.0,
+        queue_capacity: int = 4,
+        read_bytes: int = 48_000,
+    ) -> None:
+        parsed = urlparse(endpoint)
+        if parsed.scheme != "http" or parsed.hostname not in {
+            "127.0.0.1",
+            "::1",
+            "localhost",
+        }:
+            raise ValueError("Breeze endpoint must use HTTP on local loopback")
+        if not parsed.path or not instruction.strip():
+            raise ValueError("Breeze endpoint path and voice instruction must not be empty")
+        if cfg_scale <= 0 or timeout_s <= 0 or queue_capacity <= 0 or read_bytes <= 0:
+            raise ValueError("Breeze synthesis bounds must be positive")
+        self._endpoint = parsed
+        self._host = parsed.hostname
+        self._instruction = instruction.strip()
+        self._cfg_scale = cfg_scale
+        self._seed = seed
+        self._timeout_s = timeout_s
+        self._queue_capacity = queue_capacity
+        self._read_bytes = read_bytes
+
+    async def synthesize(self, text: str) -> AsyncIterator[AudioChunk]:
+        if not text.strip():
+            raise ValueError("TTS text must not be empty")
+        chunks: queue.Queue[AudioChunk | Exception | object] = queue.Queue(self._queue_capacity)
+        cancelled = threading.Event()
+        producer = asyncio.create_task(asyncio.to_thread(self._produce, text, chunks, cancelled))
+        try:
+            while True:
+                item = await asyncio.to_thread(chunks.get)
+                if item is self._END:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                if not isinstance(item, AudioChunk):
+                    raise TypeError("invalid Breeze audio chunk")
+                yield item
+        finally:
+            cancelled.set()
+            try:
+                await asyncio.wait_for(producer, timeout=2.0)
+            except TimeoutError:
+                producer.cancel()
+
+    def _produce(
+        self,
+        text: str,
+        chunks: queue.Queue[AudioChunk | Exception | object],
+        cancelled: threading.Event,
+    ) -> None:
+        connection: http.client.HTTPConnection | None = None
+        try:
+            port = self._endpoint.port or 80
+            connection = http.client.HTTPConnection(
+                self._host,
+                port,
+                timeout=self._timeout_s,
+            )
+            body = urlencode(
+                {
+                    "text": text,
+                    "instruction": self._instruction,
+                    "cfg_scale": str(self._cfg_scale),
+                    "seed": str(self._seed),
+                }
+            ).encode()
+            path = self._endpoint.path
+            if self._endpoint.query:
+                path = f"{path}?{self._endpoint.query}"
+            connection.request(
+                "POST",
+                path,
+                body=body,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Content-Length": str(len(body)),
+                    "Accept": "audio/pcm",
+                },
+            )
+            response = connection.getresponse()
+            if response.status != 200:
+                detail = response.read(4_096).decode("utf-8", errors="replace")
+                raise RuntimeError(f"Breeze service returned HTTP {response.status}: {detail}")
+            try:
+                sample_rate = int(response.getheader("X-Sample-Rate", "24000"))
+            except ValueError as error:
+                raise RuntimeError("Breeze service returned an invalid sample rate") from error
+            if sample_rate <= 0:
+                raise RuntimeError("Breeze service returned an invalid sample rate")
+            carry = b""
+            while not cancelled.is_set():
+                payload = response.read(self._read_bytes)
+                if not payload:
+                    break
+                payload = carry + payload
+                carry = payload[-1:] if len(payload) % 2 else b""
+                aligned = payload[:-1] if carry else payload
+                if aligned and not self._bounded_put(
+                    chunks,
+                    AudioChunk(aligned, sample_rate),
+                    cancelled,
+                ):
+                    break
+            if carry and not cancelled.is_set():
+                raise RuntimeError("Breeze service returned misaligned 16-bit PCM")
+        except Exception as error:
+            self._bounded_put(chunks, error, cancelled)
+        finally:
+            if connection is not None:
+                connection.close()
+            self._bounded_put(chunks, self._END, cancelled, final=True)
 
     @staticmethod
     def _bounded_put(

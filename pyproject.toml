@@ -14,12 +14,14 @@ simo = "simo.cli:main"
 
 [project.optional-dependencies]
 runtime = [
+    "fastapi>=0.115,<1",
     "livekit-agents>=1.3,<2",
     "livekit-plugins-silero>=1.3,<2",
     # NLTK 3.10's import guard misclassifies dependencies in a project-local
     # virtual environment as current-directory imports.
     "nltk>=3.10.0,<3.10.1",
     "pipecat-ai[livekit,local]",
+    "uvicorn>=0.30,<1",
 ]
 inference = [
     "mlx-audio>=0.4.6",
@@ -123,6 +125,7 @@ ignore = [
 "scripts/build_native.py" = ["S404", "S603"]
 "scripts/knowledge/tests/**/*.py" = ["ANN", "PT", "S101"]
 "scripts/setup_live_data.py" = ["EXE001", "S310"]
+"scripts/setup_lan_tls.py" = ["S404", "S603"]
 "scripts/setup_models.py" = ["EXE001"]
 "tests/python/test_cli.py" = ["S404", "S603"]
 

@@ -8,10 +8,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlparse
 
+BREEZE_TTS_MODEL = "BreezeBlue/Breeze-TTS-2"
 QWEN_TTS_MODEL = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit"
 PARAKEET_STT_MODEL = "mlx-community/parakeet-tdt-0.6b-v3"
 QWEN_TEXT_MODEL = "mlx-community/Qwen3.5-4B-4bit"
+BREEZE_TTS_REVISION = "799624c0b4a1daa8db6d28bbd9850043c0270734"
 QWEN_TTS_REVISION = "7dc92af14613355896fcab13b268c19ede233139"
 PARAKEET_STT_REVISION = "ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15"
 QWEN_TEXT_REVISION = "0e7ffd5c629ef7719d4cbc04069232580bfa9d9c"
@@ -23,6 +26,13 @@ class RunMode(StrEnum):
     HEADLESS = "headless"
     MODELS = "models"
     LIVE = "live"
+
+
+class TTSBackend(StrEnum):
+    """Speech backend selected for one immutable runtime configuration."""
+
+    BREEZE = "breeze"
+    QWEN = "qwen"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +64,12 @@ class RuntimeConfig:
     vad_stop_ms: int
     vad_pre_roll_ms: int
     max_utterance_s: float
+    tts_backend: TTSBackend
+    tts_endpoint: str
+    tts_instruction: str
+    tts_cfg_scale: float
+    tts_seed: int
+    tts_timeout_s: float
     tts_voice: str
     tts_streaming_interval_s: float
     tts: ModelConfig
@@ -95,6 +111,21 @@ class RuntimeConfig:
         vad_stop_ms = _positive_integer(values, "SIMO_VAD_STOP_MS", 320)
         vad_pre_roll_ms = _positive_integer(values, "SIMO_VAD_PRE_ROLL_MS", 200)
         max_utterance_s = _positive_float(values, "SIMO_MAX_UTTERANCE_S", 30.0)
+        tts_backend = TTSBackend(values.get("SIMO_TTS_BACKEND", TTSBackend.BREEZE))
+        tts_endpoint = values.get(
+            "SIMO_BREEZE_ENDPOINT",
+            "http://127.0.0.1:7860/v1/audio/speech",
+        ).strip()
+        _require_loopback_http_url(tts_endpoint, "SIMO_BREEZE_ENDPOINT")
+        tts_instruction = values.get(
+            "SIMO_TTS_INSTRUCTION",
+            "A warm, thoughtful voice with clear diction and a calm, natural delivery.",
+        ).strip()
+        if not tts_instruction:
+            raise ValueError("SIMO_TTS_INSTRUCTION must not be empty")
+        tts_cfg_scale = _positive_float(values, "SIMO_TTS_CFG_SCALE", 4.0)
+        tts_seed = _integer(values, "SIMO_TTS_SEED", 42)
+        tts_timeout_s = _positive_float(values, "SIMO_TTS_TIMEOUT_S", 180.0)
         tts_voice = values.get("SIMO_TTS_VOICE", "Aiden").strip()
         if not tts_voice:
             raise ValueError("SIMO_TTS_VOICE must not be empty")
@@ -125,6 +156,26 @@ class RuntimeConfig:
                 required_paths=required_paths,
             )
 
+        default_tts_id = BREEZE_TTS_MODEL if tts_backend is TTSBackend.BREEZE else QWEN_TTS_MODEL
+        default_tts_revision = (
+            BREEZE_TTS_REVISION if tts_backend is TTSBackend.BREEZE else QWEN_TTS_REVISION
+        )
+        default_tts_paths = (
+            (
+                "config.json",
+                "model.safetensors.index.json",
+                "tokenizer.json",
+                "audio_tokenizer/config.json",
+            )
+            if tts_backend is TTSBackend.BREEZE
+            else (
+                "config.json",
+                "model.safetensors",
+                "speech_tokenizer/config.json",
+                "speech_tokenizer/model.safetensors",
+            )
+        )
+
         return cls(
             mode=selected_mode,
             repository=repository,
@@ -143,19 +194,20 @@ class RuntimeConfig:
             vad_stop_ms=vad_stop_ms,
             vad_pre_roll_ms=vad_pre_roll_ms,
             max_utterance_s=max_utterance_s,
+            tts_backend=tts_backend,
+            tts_endpoint=tts_endpoint,
+            tts_instruction=tts_instruction,
+            tts_cfg_scale=tts_cfg_scale,
+            tts_seed=tts_seed,
+            tts_timeout_s=tts_timeout_s,
             tts_voice=tts_voice,
             tts_streaming_interval_s=tts_streaming_interval_s,
             tts=model(
                 "SIMO_TTS_MODEL",
                 "SIMO_TTS_REVISION",
-                QWEN_TTS_MODEL,
-                QWEN_TTS_REVISION,
-                (
-                    "config.json",
-                    "model.safetensors",
-                    "speech_tokenizer/config.json",
-                    "speech_tokenizer/model.safetensors",
-                ),
+                default_tts_id,
+                default_tts_revision,
+                default_tts_paths,
             ),
             stt=model(
                 "SIMO_STT_MODEL",
@@ -185,6 +237,14 @@ def _positive_integer(values: Mapping[str, str], name: str, default: int) -> int
     return value
 
 
+def _integer(values: Mapping[str, str], name: str, default: int) -> int:
+    raw = values.get(name, str(default))
+    try:
+        return int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer") from error
+
+
 def _positive_float(values: Mapping[str, str], name: str, default: float) -> float:
     raw = values.get(name, str(default))
     try:
@@ -210,3 +270,15 @@ def _optional_nonnegative_integer(
     if value < 0:
         raise ValueError(f"{name} must be a non-negative integer")
     return value
+
+
+def _require_loopback_http_url(value: str, name: str) -> None:
+    parsed = urlparse(value)
+    if parsed.scheme != "http" or parsed.hostname not in {
+        "127.0.0.1",
+        "::1",
+        "localhost",
+    }:
+        raise ValueError(f"{name} must be an HTTP URL on local loopback")
+    if not parsed.path or parsed.path == "/":
+        raise ValueError(f"{name} must include an endpoint path")

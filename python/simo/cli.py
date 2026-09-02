@@ -25,7 +25,7 @@ from simo.config import RunMode, RuntimeConfig
 from simo.conversation import PersistedConversationRuntime
 from simo.doctor import DoctorReport, inspect_runtime
 from simo.operations import JsonEventSink
-from simo.persistence import SimoDataError, SimoStore
+from simo.persistence import SimoDataError, SimoStore, default_runtime_profile
 from simo.runtime import HeadlessRuntime, LiveRuntime
 
 
@@ -71,6 +71,14 @@ def build_parser() -> argparse.ArgumentParser:
     profile.add_argument("alias_id")
     profile.add_argument("profile_json", type=Path)
     profile.add_argument("--json", action="store_true", dest="as_json")
+    breeze_profile = alias_commands.add_parser(
+        "use-breeze", help="create and activate a Breeze voice-design profile"
+    )
+    breeze_profile.add_argument("alias_id")
+    breeze_profile.add_argument("--instruction", required=True)
+    breeze_profile.add_argument("--cfg-scale", type=float, default=4.0)
+    breeze_profile.add_argument("--seed", type=int, default=42)
+    breeze_profile.add_argument("--json", action="store_true", dest="as_json")
     alias_export = alias_commands.add_parser("export", help="export an alias bundle")
     alias_export.add_argument("alias_id")
     alias_export.add_argument("destination", type=Path)
@@ -156,6 +164,29 @@ def build_parser() -> argparse.ArgumentParser:
     talk.add_argument("--complete", action="store_true")
     talk.add_argument("--json", action="store_true", dest="as_json")
 
+    serve = subcommands.add_parser(
+        "serve", help="serve one persisted alias to trusted browsers on the local network"
+    )
+    serve.add_argument("--alias", required=True, dest="alias_id")
+    serve.add_argument("--conversation", dest="conversation_id")
+    serve.add_argument("--hostname")
+    serve.add_argument("--node-ip")
+    serve.add_argument("--cert", required=True, type=Path)
+    serve.add_argument("--key", required=True, type=Path)
+    serve.add_argument("--https-port", type=int, default=8443)
+    serve.add_argument("--server-binary")
+    serve.add_argument("--caddy-binary")
+    serve.add_argument("--json", action="store_true", dest="as_json")
+
+    breeze = subcommands.add_parser("breeze", help="inspect and benchmark Breeze-TTS-2")
+    breeze_commands = breeze.add_subparsers(dest="breeze_command", required=True)
+    breeze_doctor = breeze_commands.add_parser("doctor", help="inspect the Breeze sidecar")
+    breeze_doctor.add_argument("--json", action="store_true", dest="as_json")
+    breeze_benchmark = breeze_commands.add_parser(
+        "benchmark", help="run the bounded M3 Ultra preview benchmark"
+    )
+    breeze_benchmark.add_argument("--json", action="store_true", dest="as_json")
+
     lab = subcommands.add_parser("lab", help="run bounded conversational lab experiments")
     lab_commands = lab.add_subparsers(dest="lab_command", required=True)
     livekit_probe = lab_commands.add_parser(
@@ -224,12 +255,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             if command == "prove-models"
             else (
                 RunMode.LIVE
-                if command in {"live", "calibrate-mic"}
+                if command in {"live", "calibrate-mic", "serve"}
                 or (command == "talk" and not _arg_str_list(args, "turn"))
                 else getattr(args, "mode", RunMode.HEADLESS)
             )
         )
         config = RuntimeConfig.from_environment(mode=requested_mode)
+        if command == "breeze":
+            from simo.breeze import health, run_benchmark
+
+            payload = (
+                health(config)
+                if _arg_str(args, "breeze_command") == "doctor"
+                else run_benchmark(config)
+            )
+            _print_structured(payload, _arg_bool(args, "as_json"))
+            return 0
         if args.command == "doctor":
             report = inspect_runtime(config)
             _print_report(report, args.as_json)
@@ -296,6 +337,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             if _arg_bool(args, "complete"):
                 store.complete_conversation(live_result.run.conversation_id)
             _print_structured(live_result.as_dict(), _arg_bool(args, "as_json"))
+            return 0
+        if command == "serve":
+            report = inspect_runtime(config)
+            if not report.ready:
+                _print_report(report, False)
+                return 1
+            from simo.lan_site import LanSiteSettings, run_lan_site
+
+            settings = LanSiteSettings.create(
+                alias_id=_arg_str(args, "alias_id"),
+                certificate=_arg_path(args, "cert"),
+                private_key=_arg_path(args, "key"),
+                hostname=_arg_optional_str(args, "hostname"),
+                node_ip=_arg_optional_str(args, "node_ip"),
+                https_port=_arg_int(args, "https_port"),
+            )
+
+            def site_ready(url: str) -> None:
+                print(f"Simo is available at {url}. Press Ctrl-C to stop.", file=sys.stderr)
+
+            result = asyncio.run(
+                run_lan_site(
+                    SimoStore(_arg_optional_path(args, "data_dir")),
+                    config,
+                    settings,
+                    conversation_id=_arg_optional_str(args, "conversation_id"),
+                    livekit_binary=_arg_optional_str(args, "server_binary"),
+                    caddy_binary=_arg_optional_str(args, "caddy_binary"),
+                    ready=site_ready,
+                )
+            )
+            _print_structured(
+                {
+                    "site_url": result.site_url,
+                    "conversation_id": result.conversation_id,
+                    "close_reason": result.close_reason,
+                },
+                _arg_bool(args, "as_json"),
+            )
             return 0
         if args.command == "live":
             report = inspect_runtime(config)
@@ -415,6 +495,28 @@ def _run_alias_command(store: SimoStore, args: argparse.Namespace) -> int:
         profile = store.revise_runtime_profile(
             _arg_str(args, "alias_id"),
             _load_json_file(_arg_path(args, "profile_json")),
+        )
+        _print_structured(profile.as_dict(), as_json)
+        return 0
+    if command == "use-breeze":
+        cfg_scale = _arg_float(args, "cfg_scale")
+        if cfg_scale <= 0:
+            raise ValueError("Breeze CFG scale must be positive")
+        instruction = _arg_str(args, "instruction").strip()
+        if not instruction:
+            raise ValueError("Breeze voice instruction must not be empty")
+        payload = default_runtime_profile()
+        payload["tts"] = {
+            "backend": "breeze",
+            "mode": "voice_design",
+            "instruction": instruction,
+            "cfg_scale": cfg_scale,
+            "seed": _arg_int(args, "seed"),
+        }
+        profile = store.revise_runtime_profile(
+            _arg_str(args, "alias_id"),
+            payload,
+            source="operator:breeze",
         )
         _print_structured(profile.as_dict(), as_json)
         return 0

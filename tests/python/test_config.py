@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 
 from simo.config import (
+    BREEZE_TTS_MODEL,
+    BREEZE_TTS_REVISION,
     PARAKEET_STT_MODEL,
     PARAKEET_STT_REVISION,
     QWEN_TEXT_MODEL,
@@ -12,6 +14,7 @@ from simo.config import (
     QWEN_TTS_REVISION,
     RunMode,
     RuntimeConfig,
+    TTSBackend,
 )
 
 
@@ -19,8 +22,11 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_defaults_are_mac_native_selected_models(self) -> None:
         config = RuntimeConfig.from_environment({})
         self.assertEqual(RunMode.HEADLESS, config.mode)
-        self.assertEqual(QWEN_TTS_MODEL, config.tts.model_id)
-        self.assertEqual(QWEN_TTS_REVISION, config.tts.revision)
+        self.assertEqual(BREEZE_TTS_MODEL, config.tts.model_id)
+        self.assertEqual(BREEZE_TTS_REVISION, config.tts.revision)
+        self.assertEqual(TTSBackend.BREEZE, config.tts_backend)
+        self.assertEqual(4.0, config.tts_cfg_scale)
+        self.assertEqual(42, config.tts_seed)
         self.assertEqual(PARAKEET_STT_MODEL, config.stt.model_id)
         self.assertEqual(PARAKEET_STT_REVISION, config.stt.revision)
         self.assertEqual(QWEN_TEXT_MODEL, config.text.model_id)
@@ -39,6 +45,13 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(30.0, config.max_utterance_s)
         self.assertEqual("Aiden", config.tts_voice)
         self.assertEqual(0.24, config.tts_streaming_interval_s)
+
+    def test_qwen_backend_preserves_the_legacy_mac_model(self) -> None:
+        config = RuntimeConfig.from_environment({"SIMO_TTS_BACKEND": "qwen"})
+
+        self.assertEqual(TTSBackend.QWEN, config.tts_backend)
+        self.assertEqual(QWEN_TTS_MODEL, config.tts.model_id)
+        self.assertEqual(QWEN_TTS_REVISION, config.tts.revision)
 
     def test_environment_overrides_are_typed_once(self) -> None:
         config = RuntimeConfig.from_environment(
@@ -94,6 +107,10 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_invalid_tts_settings_fail_before_runtime_start(self) -> None:
         with self.assertRaisesRegex(ValueError, "must not be empty"):
             RuntimeConfig.from_environment({"SIMO_TTS_VOICE": "  "})
+        with self.assertRaisesRegex(ValueError, "local loopback"):
+            RuntimeConfig.from_environment({"SIMO_BREEZE_ENDPOINT": "http://192.168.1.2:7860/x"})
+        with self.assertRaisesRegex(ValueError, "local loopback"):
+            RuntimeConfig.from_environment({"SIMO_BREEZE_ENDPOINT": "https://localhost:7860/x"})
         for value in ("0", "-0.1", "soon"):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "positive number"):

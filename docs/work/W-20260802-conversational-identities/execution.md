@@ -4,7 +4,7 @@ title: Conversational identities execution
 description: Orders storage, conversation, learning, LiveKit Agents migration, WebRTC, evaluation, promotion, and documentation milestones.
 tags: [work, execution, milestones, aliases, livekit]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T16:17:35Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-EXECUTION
@@ -26,3 +26,4 @@ simo:
 | T-007 | Add held-out scenarios, mechanics and conversation evaluators, and synthetic ground-truth metrics | A-009, A-010, A-012 | pending |
 | T-008 | Add candidate search, automatic promotion, canarying, rollback, and persona lineage | A-011, A-012 | pending |
 | T-009 | Promote durable architecture/interfaces/operations, run full verification, and close | A-013, A-014, A-015 | pending |
+| T-010 | Pin and integrate Breeze-TTS-2, benchmark MPS, serve one alias through trusted LAN HTTPS/WSS, and complete physical Safari acceptance | A-016, A-017 | active |

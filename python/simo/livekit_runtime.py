@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import asdict, dataclass, replace
 from typing import cast
 
 from livekit import rtc
@@ -15,9 +15,18 @@ from simo.adapters.livekit import (
     LiveKitSessionEventBridge,
     build_livekit_agent_session,
 )
-from simo.config import RuntimeConfig
+from simo.config import (
+    BREEZE_TTS_MODEL,
+    BREEZE_TTS_REVISION,
+    QWEN_TTS_MODEL,
+    QWEN_TTS_REVISION,
+    ModelConfig,
+    RuntimeConfig,
+    TTSBackend,
+)
 from simo.context import ContextParticipant, ConversationContextScope, NativeContextEngine
 from simo.inference import (
+    BreezeHTTPSynthesizer,
     MLXAudioSynthesizer,
     MLXTextGenerator,
     ParakeetMLXRecognizer,
@@ -112,6 +121,7 @@ class LiveKitAliasRuntime:
     async def run(self, request: LiveKitAliasRunRequest) -> LiveKitAliasRunResult:
         self._validate_room_scope(request)
         alias = self._store.get_alias(request.alias_id)
+        runtime_config = config_for_alias_profile(self._store, request.alias_id, self._config)
         persona = next(
             item
             for item in self._store.list_persona_versions(request.alias_id)
@@ -168,12 +178,12 @@ class LiveKitAliasRuntime:
         close_task: asyncio.Task[None] | None = None
 
         with NativeContextEngine(
-            queue_capacity=self._config.queue_capacity,
-            max_segments=self._config.max_segments,
+            queue_capacity=runtime_config.queue_capacity,
+            max_segments=runtime_config.max_segments,
             scope=scope,
-            library_path=self._config.core_library,
+            library_path=runtime_config.core_library,
         ) as engine:
-            refresh_knowledge_graph(engine, self._config.repository)
+            refresh_knowledge_graph(engine, runtime_config.repository)
             refresh_memory_graph(engine, self._store, request.alias_id, participant_ids)
             transcript = self._store.transcript(conversation_id)
             for turn in transcript:
@@ -188,16 +198,16 @@ class LiveKitAliasRuntime:
                 remote_participant_id=request.remote_participant_id,
                 remote_transport_id=request.remote_transport_identity,
                 participant_ids=participant_ids,
-                capacity=self._config.queue_capacity,
+                capacity=runtime_config.queue_capacity,
             )
             components = build_livekit_agent_session(
-                self._config,
+                runtime_config,
                 engine,
                 persona_instructions=persona.instructions,
                 remote_transport_identity=request.remote_transport_identity,
-                recognizer=self._recognizer_factory(self._config),
-                generator=self._generator_factory(self._config),
-                synthesizer=self._synthesizer_factory(self._config),
+                recognizer=self._recognizer_factory(runtime_config),
+                generator=self._generator_factory(runtime_config),
+                synthesizer=self._synthesizer_factory(runtime_config),
                 event_sink=bridge,
                 chat_context=build_livekit_history(transcript, alias_participant_id),
                 loaded_vad=self._loaded_vad,
@@ -323,6 +333,93 @@ def build_livekit_history(
     return context
 
 
+def config_for_alias_profile(
+    store: SimoStore,
+    alias_id: str,
+    config: RuntimeConfig,
+) -> RuntimeConfig:
+    """Apply the active immutable alias TTS profile to one session snapshot."""
+
+    alias = store.get_alias(alias_id)
+    version = next(
+        item
+        for item in store.list_runtime_profile_versions(alias_id)
+        if item.version == alias.active_runtime_profile_version
+    )
+    profile = version.profile
+    if config.tts_backend is TTSBackend.QWEN:
+        return replace(
+            config,
+            tts=_tts_model_config(config, QWEN_TTS_MODEL, QWEN_TTS_REVISION, breeze=False),
+        )
+    schema = profile.get("schema")
+    if schema == "simo.runtime-profile.v1":
+        voice = profile.get("voice", "Aiden")
+        if not isinstance(voice, str) or not voice.strip():
+            raise ValueError("runtime profile v1 voice must be a non-empty string")
+        return replace(
+            config,
+            tts_backend=TTSBackend.QWEN,
+            tts_voice=voice.strip(),
+            tts=_tts_model_config(config, QWEN_TTS_MODEL, QWEN_TTS_REVISION, breeze=False),
+        )
+    if schema != "simo.runtime-profile.v2":
+        raise ValueError(f"unsupported runtime profile schema: {schema!r}")
+    raw_tts = profile.get("tts")
+    if not isinstance(raw_tts, Mapping):
+        raise TypeError("runtime profile v2 requires a TTS object")
+    tts = cast(Mapping[object, object], raw_tts)
+    if tts.get("backend") != "breeze" or tts.get("mode") != "voice_design":
+        raise ValueError("runtime profile v2 supports Breeze voice_design only")
+    instruction = tts.get("instruction")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise ValueError("Breeze voice instruction must be a non-empty string")
+    cfg_scale = tts.get("cfg_scale", 4.0)
+    seed = tts.get("seed", 42)
+    if not isinstance(cfg_scale, (int, float)) or isinstance(cfg_scale, bool) or cfg_scale <= 0:
+        raise ValueError("Breeze CFG scale must be positive")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise TypeError("Breeze seed must be an integer")
+    return replace(
+        config,
+        tts_backend=TTSBackend.BREEZE,
+        tts_instruction=instruction.strip(),
+        tts_cfg_scale=float(cfg_scale),
+        tts_seed=seed,
+        tts=_tts_model_config(config, BREEZE_TTS_MODEL, BREEZE_TTS_REVISION, breeze=True),
+    )
+
+
+def _tts_model_config(
+    config: RuntimeConfig,
+    model_id: str,
+    revision: str,
+    *,
+    breeze: bool,
+) -> ModelConfig:
+    required_paths = (
+        (
+            "config.json",
+            "model.safetensors.index.json",
+            "tokenizer.json",
+            "audio_tokenizer/config.json",
+        )
+        if breeze
+        else (
+            "config.json",
+            "model.safetensors",
+            "speech_tokenizer/config.json",
+            "speech_tokenizer/model.safetensors",
+        )
+    )
+    return ModelConfig(
+        model_id,
+        revision,
+        config.models_dir / model_id.rsplit("/", 1)[-1],
+        required_paths,
+    )
+
+
 def _create_recognizer(config: RuntimeConfig) -> SpeechRecognizer:
     return ParakeetMLXRecognizer(config.stt.local_path)
 
@@ -332,6 +429,14 @@ def _create_generator(config: RuntimeConfig) -> TextGenerator:
 
 
 def _create_synthesizer(config: RuntimeConfig) -> SpeechSynthesizer:
+    if config.tts_backend is TTSBackend.BREEZE:
+        return BreezeHTTPSynthesizer(
+            config.tts_endpoint,
+            instruction=config.tts_instruction,
+            cfg_scale=config.tts_cfg_scale,
+            seed=config.tts_seed,
+            timeout_s=config.tts_timeout_s,
+        )
     return MLXAudioSynthesizer(
         config.tts.local_path,
         voice=config.tts_voice,

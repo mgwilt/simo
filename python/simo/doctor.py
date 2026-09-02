@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import http.client
 import importlib.util
 import json
 import platform
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, cast
+from urllib.parse import urlparse
 
-from simo.config import ModelConfig, RunMode, RuntimeConfig
+from simo.config import ModelConfig, RunMode, RuntimeConfig, TTSBackend
 from simo.context import find_core_library
 
 
@@ -58,14 +60,13 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
     ]
     livekit_checks: list[Check] = []
     if requires_models:
-        mlx_module_checks = [
-            _module_check(name, module)
-            for name, module in (
-                ("MLX-Audio", "mlx_audio"),
-                ("Parakeet MLX", "parakeet_mlx"),
-                ("MLX-LM", "mlx_lm"),
-            )
+        mlx_modules = [
+            ("Parakeet MLX", "parakeet_mlx"),
+            ("MLX-LM", "mlx_lm"),
         ]
+        if config.tts_backend is TTSBackend.QWEN:
+            mlx_modules.insert(0, ("MLX-Audio", "mlx_audio"))
+        mlx_module_checks = [_module_check(name, module) for name, module in mlx_modules]
         checks.extend(mlx_module_checks)
         if is_live:
             livekit_checks = [
@@ -104,6 +105,8 @@ def inspect_runtime(config: RuntimeConfig) -> DoctorReport:
                 ("text model", config.text),
             )
         )
+        if config.tts_backend is TTSBackend.BREEZE:
+            checks.append(_breeze_service_check(config))
     ready = all(check.ok for check in checks if check.required)
     return DoctorReport(config.mode, ready, tuple(checks))
 
@@ -120,6 +123,32 @@ def _module_check(name: str, module: str) -> Check:
     found = importlib.util.find_spec(module) is not None
     detail = f"Python module {module} {'found' if found else 'not installed'}"
     return Check(name, found, True, detail)
+
+
+def _breeze_service_check(config: RuntimeConfig) -> Check:
+    health_url = config.tts_endpoint.rsplit("/", 3)[0] + "/health"
+    parsed = urlparse(health_url)
+    if parsed.hostname is None:
+        return Check("Breeze service", False, True, "health URL has no host")
+    connection = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=1.0)
+    try:
+        connection.request("GET", parsed.path)
+        response = connection.getresponse()
+        raw = cast(object, json.loads(response.read(16_384)))
+    except (OSError, json.JSONDecodeError) as error:
+        return Check("Breeze service", False, True, f"unavailable at {health_url}: {error}")
+    finally:
+        connection.close()
+    if not isinstance(raw, dict):
+        return Check("Breeze service", False, True, "health response is not an object")
+    payload = {str(key): value for key, value in cast(dict[object, object], raw).items()}
+    ready = payload.get("status") == "ready"
+    return Check(
+        "Breeze service",
+        ready,
+        True,
+        f"{payload.get('device', 'unknown')} {payload.get('dtype', 'unknown')} at {health_url}",
+    )
 
 
 def _model_check(name: str, model: ModelConfig) -> Check:

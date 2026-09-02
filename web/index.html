@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#12120f" />
+    <title>Simo Voice</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">SIMO · LOCAL VOICE</p>
+      <h1 id="alias">Your conversational alias</h1>
+      <p id="status" class="status">Ready to connect</p>
+      <div class="orb" id="orb" aria-hidden="true"></div>
+      <button id="toggle" type="button">Start conversation</button>
+      <section class="palette" aria-labelledby="palette-title">
+        <p class="eyebrow">MIC-FREE PREVIEW</p>
+        <h2 id="palette-title">Choose a voice direction</h2>
+        <p id="preview-copy" class="preview-copy">Loading the local voice palette…</p>
+        <div id="preview-grid" class="preview-grid"></div>
+        <p id="preview-status" class="preview-status" aria-live="polite"></p>
+        <audio id="preview-audio" controls preload="none" hidden></audio>
+      </section>
+      <p class="notice">Audio stays on this local Simo installation. Breeze is licensed for personal, research, and non-commercial evaluation.</p>
+      <audio id="remote-audio" autoplay></audio>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

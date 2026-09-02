@@ -1,0 +1,23 @@
+[project]
+name = "simo-breeze-service"
+version = "0.1.0"
+description = "Isolated Apple Silicon Breeze-TTS-2 inference service for Simo"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "fastapi>=0.115",
+    "numpy>=2.0",
+    "python-multipart>=0.0.18",
+    "qwen-tts==0.1.1",
+    "soundfile>=0.13",
+    "torch==2.9.1",
+    "torchaudio==2.9.1",
+    "transformers==4.57.3",
+    "uvicorn>=0.30",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = false

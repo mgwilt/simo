@@ -4,7 +4,7 @@ title: Predecessor local macOS voice pipeline
 description: Preserves the implemented Pipecat local-audio baseline that preceded Simo's LiveKit Agents headset runtime.
 tags: [architecture, macos, voice, pipecat, mlx, audio, interruption]
 status: stable
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T16:17:35Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
 verified: { by: codex/gpt-5.6-sol, at: 2026-08-03T02:08:49Z }
 sources:
   - id: pipecat-local-transport
@@ -35,6 +35,8 @@ simo:
 # Local macOS voice pipeline
 
 > Historical boundary: this concept describes the still-present predecessor Pipecat path. The current interactive command is the [LiveKit Agents runtime](livekit-agents-runtime.md), and Pipecat removal is active work under `W-20260802-conversational-identities`.
+
+> Current model boundary: new aliases now select the isolated [Breeze-TTS-2 service](../interfaces/breeze-tts.md). The Qwen measurements below remain historical evidence for this predecessor path and must not be presented as Breeze performance.
 
 ## Implemented topology
 

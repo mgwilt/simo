@@ -390,7 +390,17 @@ def _create_generator(config: RuntimeConfig) -> Any:
 
 
 def _create_synthesizer(config: RuntimeConfig) -> Any:
-    from simo.inference import MLXAudioSynthesizer
+    from simo.config import TTSBackend
+    from simo.inference import BreezeHTTPSynthesizer, MLXAudioSynthesizer
+
+    if config.tts_backend is TTSBackend.BREEZE:
+        return BreezeHTTPSynthesizer(
+            config.tts_endpoint,
+            instruction=config.tts_instruction,
+            cfg_scale=config.tts_cfg_scale,
+            seed=config.tts_seed,
+            timeout_s=config.tts_timeout_s,
+        )
 
     return MLXAudioSynthesizer(
         config.tts.local_path,

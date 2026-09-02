@@ -4,12 +4,12 @@ title: Conversational identities scope
 description: Defines included capabilities and the privacy, authority, evidence, and external-effect boundaries for durable conversational aliases.
 tags: [work, scope, privacy, authority, aliases, livekit]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-SCOPE
   authority: coordination
-  repository_paths: [.gitmodules, python/simo, include/simo, src, tests, scripts, docs, pyproject.toml, uv.lock, vendor/pipecat]
+  repository_paths: [.gitmodules, README.md, python/simo, services/breeze, web, include/simo, src, tests, scripts, docs, pyproject.toml, uv.lock, vendor/pipecat, vendor/breeze-tts]
   owner: codex/gpt-5.6-sol
   work: { parent_id: W-20260802-conversational-identities }
 ---
@@ -24,6 +24,8 @@ simo:
 - Safe perspective-bound relationship learning, correction, forgetting, freshness, contradiction history, and OKF materialization.
 - Self-hosted LiveKit Server plus LiveKit Agents as the sole realtime media, turn-taking, interruption, and voice-model orchestration layer, with independent Simo participants and remote-audio-only subscription.
 - Local Parakeet, text-generation, Qwen/Gepard-compatible TTS, Flecs context, transcript persistence, and operational-observer adapters behind LiveKit Agents provider, node, and session-event contracts.
+- Pinned Breeze-TTS-2 model and source, an isolated loopback-only PyTorch sidecar, immutable Breeze runtime-profile versions, and the former Qwen voice as an explicit rollback backend.
+- A single-client HTTPS/WSS browser surface for one persisted alias on the trusted local network, with fresh LiveKit credentials, audio-only participant allow lists, and no public or cloud exposure.
 - Evidence-gated removal of Pipecat runtime dependencies, adapters, tests, documentation ownership claims, and the vendored Pipecat submodule after replacement behavior passes proportional checks.
 - Synthetic two-alias experiment execution, evaluation profiles with hard floors, automatic promotion, canary verification, and rollback.
 - Mac-native open-source models and synthetic or prerecorded acceptance; no human timing or participation is required.
@@ -38,3 +40,5 @@ simo:
 - LiveKit Inference and LiveKit Cloud are not required or authorized; model execution and the agent worker remain local while the room server is self-hosted.
 - Self-play and model-judge results do not prove subjective human naturalness.
 - No cloud deployment, remote publication, hosted LiveKit provisioning, or paid provider is authorized by this plan.
+- Breeze-TTS-2 is restricted to the model license's personal and non-commercial uses; Simo does not grant broader model rights.
+- Internet exposure, router port forwarding, public certificates, multi-tenant access, and unattended background service installation are excluded.

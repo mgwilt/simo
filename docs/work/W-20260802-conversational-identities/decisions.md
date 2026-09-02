@@ -4,7 +4,7 @@ title: Conversational identities decisions
 description: Records locked storage, identity, learning, LiveKit Agents ownership, privacy, and promotion choices.
 tags: [work, decisions, aliases, okf, livekit, evaluation]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-08-03T05:37:38Z }
+generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-DECISIONS
@@ -54,3 +54,15 @@ LiveKit Server owns WebRTC transport and rooms. LiveKit Agents owns RoomIO, VAD,
 Running Pipecat and LiveKit Agents together is rejected because it creates competing frame, cancellation, buffering, participant, observer, and tuning ownership. Using only the low-level LiveKit RTC SDK is also rejected for now because it would require Simo to reimplement the turn and voice-pipeline lifecycle already supplied by LiveKit Agents. Pipecat is removed only after replacement unit and live-room evidence passes so the migration cannot erase the last working path prematurely.
 
 Promotion target: [LiveKit Agents runtime](../../architecture/livekit-agents-runtime.md).
+
+## D-010: Default to pinned Breeze with immutable Qwen rollback
+
+New runtime profiles use the exact Breeze-TTS-2 model revision through an isolated loopback-only PyTorch service. Simo's in-process TTS adapter remains cancellation-aware and bounded, while v1 profiles continue to resolve to the former MLX-Audio Qwen voice. The vendored Breeze source remains unmodified; Apple Silicon compatibility belongs to Simo's wrapper.
+
+The declared preview gate is p95 first audio at most 2 seconds and p95 RTF at most 1.5. The M3 Ultra eager result failed both limits by a wide margin, but the operator explicitly chose to retain Breeze. Performance failure therefore remains visible evidence rather than silently selecting Qwen or claiming readiness.
+
+## D-011: Expose only a one-client trusted-LAN WebRTC edge
+
+Caddy terminates HTTPS/WSS on the selected private IPv4 address and local hostname. The session API issues one short-lived room token to a fixed browser identity; the alias subscribes only to that identity. LiveKit media ports are LAN-visible, while token minting, model services, LiveKit signaling origin, application data, and private keys stay local to the Mac. No router forwarding, cloud service, or public endpoint is part of this boundary.
+
+The local mkcert CA must be trusted separately by each browser device. Certificate generation is executable, but changing macOS or iOS trust settings remains an explicit operator action.

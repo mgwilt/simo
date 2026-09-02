@@ -15,6 +15,7 @@ from typing import Any
 from simo.config import ModelConfig, RunMode, RuntimeConfig
 
 MODEL_BYTES = {
+    "BreezeBlue/Breeze-TTS-2": 7_700_000_000,
     "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit": 1_833_590_308,
     "mlx-community/parakeet-tdt-0.6b-v3": 2_509_044_141,
     "mlx-community/Qwen3.5-4B-4bit": 3_061_130_647,

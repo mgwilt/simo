@@ -62,6 +62,7 @@ class DoctorTests(unittest.TestCase):
                 patch("simo.doctor._mlx_metal_check") as metal_check,
                 patch("simo.doctor._nltk_data_check") as nltk_check,
                 patch("simo.doctor._model_check") as model_check,
+                patch("simo.doctor._breeze_service_check") as breeze_check,
                 patch("simo.doctor._local_audio_device_check") as audio_check,
             ):
 
@@ -75,6 +76,7 @@ class DoctorTests(unittest.TestCase):
                 metal_check.return_value = Check("MLX Metal device", True, True, "ok")
                 nltk_check.return_value = Check("Pipecat sentence data", True, True, "ok")
                 model_check.side_effect = available_model
+                breeze_check.return_value = Check("Breeze service", True, True, "ok")
                 report = inspect_runtime(config)
 
         self.assertTrue(report.ready)

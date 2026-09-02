@@ -29,7 +29,7 @@ class ModelSetupTests(unittest.TestCase):
             config = self.config(directory)
             payload = plan_payload(config, model_plans(config))
 
-        self.assertEqual(7_403_765_096, payload["expected_bytes"])
+        self.assertEqual(13_270_174_788, payload["expected_bytes"])
         self.assertGreater(payload["required_free_bytes"], payload["expected_bytes"])
         self.assertEqual("--accept-download", payload["requires_explicit_flag"])
         self.assertTrue(all(len(model["revision"]) == 40 for model in payload["models"]))
