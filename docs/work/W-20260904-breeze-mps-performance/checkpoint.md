@@ -15,7 +15,11 @@ simo:
 ---
 # Breeze performance checkpoint
 
-T-025 publication authorized2026-09-05T19:40Z: user requests commit and push of completed T-024 reporting. Root owns L-025; local and live origin/main both begin at a5ac3fd7. Held data/charts/renderer stay identical to E-024/R-137 while T-138 checks publication scope. Normal commit/push hooks and exact remote verification are required. Only Simo reporting/tracking is in scope; fork78a79bbe and unrelated :memory:.ses are excluded. No new inference, service or acceptance changes. Publication is in progress; earlier no-publication statements below describe the previous reporting turn.
+Current T-025 publication checkpoint,2026-09-05T19:43Z: reporting commit ff7960a43241d1cf671f3d6e0ab8bd2de9cd8f76 is pushed and independently read back from origin/main. [E-025](evidence/E-025-chart-publication.md)/R-138 hold exact scope, hashes and hook evidence:212 Python tests, native build/tests, configured static checks,170 docs/zero errors/four existing advisory categories and five knowledge tests passed. Fork78a79bbe unchanged, no model/audio/browser/benchmark/service change. Only unrelated :memory:.ses remains outside this documentation checkpoint; no staged reporting work remains.
+
+L-025 released; plan active/read_only/no mutation paths. Full Fast/physical/perceptual acceptance remains open. Next: user reviews published README or supplies scoped follow-up. This truthful publication record follows the implementation as a documentation-only checkpoint; Git identifies its revision. Earlier uncommitted/no-publication paragraphs below are historical and superseded by this verified remote result.
+
+## Previous local reporting checkpoint
 
 Current T-024 reporting checkpoint,2026-09-05T19:37Z: [E-024](evidence/E-024-readme-benchmarks.md) and R-135/R-136/R-137 complete A-010. README now contains historical p95totalRTF/first-PCM progression, matched precision/ASR chart, serving/startup table and owned-fork technical specifications, with all Flecs copy removed. benchmarks/breeze holds397 timed rows/18 cohorts plus12 separate startup requests and original receipt hashes; standard-library renderer reproduces three outputs, or four with local receipt re-extraction. Eleven focused tests/configured parent static/168 docs-zero errors-four existing warning categories/five knowledge/diff checks pass. Independent review rehashes all receipts and sums280 weight records. No inference, audio/browser or service changes.
 

@@ -15,6 +15,8 @@ simo:
 ---
 # Breeze performance verification
 
+T-025: [E-025](evidence/E-025-chart-publication.md) records ff7960a remote verification, normal hook passes including212 Python/native tests, R-138 publication-scope audit and unchanged release limits. L-025 released; this metadata checkpoint follows the published reporting commit.
+
 T-024/A-010: [E-024](evidence/E-024-readme-benchmarks.md)/R-135/R-136/R-137 pass recorded-data/technical-source review and exact chart reproduction. Eleven CPU tests, configured parent Ruff/format/ty/BasedPyright,168 documentation concepts/zero errors/four existing warning categories, five knowledge regressions and diff checks pass. Independent reviewer rehashes18 receipts, verifies397 rows/126 resident pairs/280 weight records, and repeats11 tests/four-product extraction. Broader exploratory Ruff outside configured targets retains four existing service diagnostics. Visual static-chart inspection passes; no inference, browser/audio, fork/web/native regression or performance benchmark is rerun. L-024 released, no publication; full Fast/physical/perceptual gates unchanged.
 
 T-022/D-018: acceptance deliberately NOT RUN per latest user request. Existing fast MLX candidate and full Simo launched; startup doctor ready, trusted HTTPS200/health ready, active local conversation and source-only R-134 compatibility verified. [E-022](evidence/E-022-fast-manual-run.md) distinguishes current6968213c… runtime from earlier f0cac89f…. No synthesized speech, browser/microphone or quality claim. Documentation155 concepts/zero errors/four existing warning categories, five knowledge checks and diff validation pass. This is an authorized manual run, not release acceptance.

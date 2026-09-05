@@ -15,7 +15,7 @@ simo:
 ---
 # Breeze performance execution
 
-T-025 active under L-025,2026-09-05T19:40Z: explicit user-authorized commit/push of T-024 to origin/main. Root serializes staging/publication, T-138 checks held reporting read-only, normal hooks and live remote SHA establish the outcome. No fork/runtime/service/inference change or release promotion; :memory:.ses remains excluded.
+T-025 done, L-025 released2026-09-05T19:43Z: explicit user-authorized reporting commit ff7960a is pushed and remote-verified on origin/main. R-138 confirms held scope/hashes; normal pre-commit/pre-push hooks pass including212 Python tests/native build/tests. [E-025](evidence/E-025-chart-publication.md) owns publication evidence. Fork/runtime/service/inference/acceptance unchanged; :memory:.ses excluded. Final bounded publication metadata follows as a documentation-only checkpoint.
 
 T-024/A-010 done; L-024 released2026-09-05T19:37Z. [E-024](evidence/E-024-readme-benchmarks.md) publishes local reproducible timeline/precision charts,397 source-hashed timed rows, cohort tables and technical specifications; README Flecs copy removed. R-135/R-136/R-137 independently verify raw data, source specs and all claims. Eleven chart tests, configured parent static,168 docs/zero errors/four existing warning categories, five knowledge/diff checks pass. Root sole writer; no fork, inference, service or publication change. Plan active/read_only; full physical/perceptual/performance gates unchanged.
 

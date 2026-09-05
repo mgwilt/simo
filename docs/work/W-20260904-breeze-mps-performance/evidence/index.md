@@ -1,5 +1,7 @@
 # Evidence
 
+- [README chart publication](E-025-chart-publication.md) - Reviewed reporting pushed to main with212 tests, normal hooks and exact remote SHA verification.
+
 - [Reproducible README performance charts](E-024-readme-benchmarks.md) - Historical timeline, matched precision,397 scalar rows and source/specification boundaries.
 
 - [Repository publication checkpoint](E-023-repository-publication.md) - Published owned fork first, then matching Simo code, docs and gitlink; release gates remain open.
