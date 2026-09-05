@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simo · Experimental voice previews</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">SIMO / LOCAL INFERENCE LAB</p>
+      <h1>Hear the MLX candidate.</h1>
+      <p class="intro">Same dialogue, three voice instructions. No microphone, conversation, or memory.</p>
+      <p id="playback-policy" class="notice">Experimental 8-bit MLX · not an accepted Fast release. Checking the operator-selected playback policy…</p>
+      <blockquote id="preview-copy">Loading voice instructions…</blockquote>
+      <section id="preview-grid" aria-label="Voice samples"></section>
+      <div class="playback"><p id="preview-status" role="status" aria-live="polite">Connecting to the experimental model…</p><button id="preview-stop" hidden>Stop</button></div>
+      <p class="footnote">Generation timings and scheduled playback are distinct. Listening still establishes voice quality.</p>
+      <section id="listening-review" aria-label="Blinded listening and fresh device trials"></section>
+    </main>
+    <script type="module" src="/src/preview-only.ts"></script>
+  </body>
+</html>

@@ -92,7 +92,7 @@ class RuntimeConfig:
         max_segments = _positive_integer(values, "SIMO_MAX_SEGMENTS", 64)
         context_max_chars = _positive_integer(values, "SIMO_CONTEXT_MAX_CHARS", 8_000)
         context_max_age_ms = _positive_integer(values, "SIMO_CONTEXT_MAX_AGE_MS", 1_000)
-        text_max_tokens = _positive_integer(values, "SIMO_TEXT_MAX_TOKENS", 64)
+        text_max_tokens = _positive_integer(values, "SIMO_TEXT_MAX_TOKENS", 512)
         audio_input_device_index = _optional_nonnegative_integer(
             values,
             "SIMO_AUDIO_INPUT_DEVICE_INDEX",

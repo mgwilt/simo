@@ -1,4 +1,6 @@
 import { Room, RoomEvent, Track } from "livekit-client";
+import { PreviewPlayer } from "./preview-player";
+import { mountLiveControls } from "./live-controls";
 import "./style.css";
 
 interface SessionResponse {
@@ -37,10 +39,11 @@ const audio = requireElement<HTMLAudioElement>("#remote-audio");
 const previewCopy = requireElement<HTMLElement>("#preview-copy");
 const previewGrid = requireElement<HTMLElement>("#preview-grid");
 const previewStatus = requireElement<HTMLElement>("#preview-status");
-const previewAudio = requireElement<HTMLAudioElement>("#preview-audio");
+const previewStop = requireElement<HTMLButtonElement>("#preview-stop");
+mountLiveControls(requireElement<HTMLFormElement>("#live-controls"));
 
 let room: Room | null = null;
-let previewObjectUrl: string | null = null;
+let previewPlayer: PreviewPlayer | null = null;
 
 function setState(label: string, state: string): void {
   status.textContent = label;
@@ -117,36 +120,43 @@ function setPreviewButtonsDisabled(disabled: boolean): void {
 
 async function playPreview(preset: VoicePreview): Promise<void> {
   setPreviewButtonsDisabled(true);
+  previewStop.hidden = false;
   previewStatus.textContent = preset.cached
     ? `Loading ${preset.label}…`
-    : `Rendering ${preset.label} locally… this can take about one minute.`;
+    : `Buffering ${preset.label} for smooth playback…`;
+  let selected: PreviewPlayer | null = null;
   try {
-    const response = await fetch(`/api/previews/${encodeURIComponent(preset.id)}`, {
-      method: "POST",
+    selected = new PreviewPlayer();
+    previewPlayer = selected;
+    let lastUpdate = 0;
+    await selected.play(`/api/previews/${encodeURIComponent(preset.id)}/stream`, (metrics) => {
+      if (previewPlayer !== selected) return;
+      if (!metrics.completed && performance.now() - lastUpdate < 200) return;
+      lastUpdate = performance.now();
+      previewStatus.dataset.metrics = JSON.stringify(metrics);
+      const buffering = metrics.firstPlaybackMs === null && !metrics.completed;
+      const timing = buffering
+        ? `${(metrics.receivedFrames / 24000).toFixed(1)}s of audio ready · playback starts when the clip is complete`
+        : `First audio ${((metrics.firstPlaybackMs ?? 0) / 1000).toFixed(2)}s`;
+      previewStatus.textContent = `${metrics.completed ? "Finished" : buffering ? "Buffering" : "Playing"} ${preset.label} · ${timing}${buffering ? "" : ` · ${metrics.underruns} buffering pauses`}${metrics.cache === "HIT" ? " · cached" : ""}`;
     });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    const blob = await response.blob();
-    if (previewObjectUrl) {
-      URL.revokeObjectURL(previewObjectUrl);
-    }
-    previewObjectUrl = URL.createObjectURL(blob);
-    previewAudio.src = previewObjectUrl;
-    previewAudio.hidden = false;
-    previewStatus.textContent = `${preset.label} is ready.`;
-    try {
-      await previewAudio.play();
-    } catch {
-      previewStatus.textContent = `${preset.label} is ready — tap play below.`;
-    }
     preset.cached = true;
   } catch (error) {
-    previewStatus.textContent = error instanceof Error ? error.message : "Unable to render preview";
+    if (previewPlayer === selected) {
+      previewStatus.textContent = error instanceof DOMException && error.name === "AbortError"
+        ? "Preview stopped."
+        : error instanceof Error ? error.message : "Unable to play preview";
+    }
   } finally {
-    setPreviewButtonsDisabled(false);
+    if (previewPlayer === selected) {
+      previewPlayer = null;
+      previewStop.hidden = true;
+      setPreviewButtonsDisabled(false);
+    }
   }
 }
+
+previewStop.addEventListener("click", () => previewPlayer?.stop());
 
 async function loadVoicePalette(): Promise<void> {
   try {
@@ -155,7 +165,7 @@ async function loadVoicePalette(): Promise<void> {
       throw new Error(await response.text());
     }
     const palette = (await response.json()) as VoicePreviewResponse;
-    previewCopy.textContent = `Same line for every voice: “${palette.text}” ${palette.render_note}`;
+    previewCopy.textContent = `Same line for every voice: “${palette.text}” Clips buffer fully for smooth playback. The first render takes longer; completed samples are cached for quick replay. Stop works while buffering or playing.`;
     for (const preset of palette.presets) {
       const card = document.createElement("article");
       card.className = "preview-card";
@@ -182,8 +192,10 @@ async function loadVoicePalette(): Promise<void> {
 void loadVoicePalette();
 
 window.addEventListener("pagehide", () => {
+  previewPlayer?.stop();
   void disconnect();
-  if (previewObjectUrl) {
-    URL.revokeObjectURL(previewObjectUrl);
-  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) previewPlayer?.stop();
 });

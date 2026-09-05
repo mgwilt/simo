@@ -35,6 +35,7 @@ from simo.inference import (
     TextGenerator,
 )
 from simo.knowledge import refresh_knowledge_graph
+from simo.live_controls import LiveConversationControls
 from simo.livekit_room import LiveKitRoomConfig
 from simo.memory import refresh_memory_graph
 from simo.persistence import SimoStore, TranscriptTurn
@@ -108,6 +109,7 @@ class LiveKitAliasRuntime:
         synthesizer_factory: SynthesizerFactory | None = None,
         room_factory: RoomFactory | None = None,
         loaded_vad: vad.VAD | None = None,
+        live_controls: LiveConversationControls | None = None,
     ) -> None:
         self._store = store
         self._config = config
@@ -117,6 +119,7 @@ class LiveKitAliasRuntime:
         self._synthesizer_factory = synthesizer_factory or _create_synthesizer
         self._room_factory = room_factory or rtc.Room
         self._loaded_vad = loaded_vad
+        self._live_controls = live_controls
 
     async def run(self, request: LiveKitAliasRunRequest) -> LiveKitAliasRunResult:
         self._validate_room_scope(request)
@@ -200,6 +203,16 @@ class LiveKitAliasRuntime:
                 participant_ids=participant_ids,
                 capacity=runtime_config.queue_capacity,
             )
+
+            def turn_synthesizer() -> SpeechSynthesizer:
+                selected = runtime_config
+                if self._live_controls is not None:
+                    selected = replace(
+                        selected,
+                        tts_instruction=self._live_controls.snapshot().voice_instruction,
+                    )
+                return self._synthesizer_factory(selected)
+
             components = build_livekit_agent_session(
                 runtime_config,
                 engine,
@@ -211,6 +224,8 @@ class LiveKitAliasRuntime:
                 event_sink=bridge,
                 chat_context=build_livekit_history(transcript, alias_participant_id),
                 loaded_vad=self._loaded_vad,
+                live_controls=self._live_controls,
+                synthesizer_factory=turn_synthesizer,
             )
             closed = asyncio.Event()
             close_error: list[object] = []

@@ -15,6 +15,8 @@ simo:
 ---
 # Verification
 
+`E-008` verifies the bounded T-011/A-018 slice on2026-09-05:41 focused Python tests,61 web tests, strict Python/TypeScript checks, web build, documentation/knowledge checks and a CA-validated live controls request passed. One local text-only request produced7 sentences/213 words with a1024-token budget. Reviews R-101/R-102 distinguish instruction-only voice design from locked speaker conditioning and confirm the two review corrections. No physical browser/audio or formal model-performance acceptance was run; the operator-authorized Fast recipe remains unaccepted. Existing immutable alias versions are unchanged; live overrides are process-local.
+
 `E-001` verifies `A-001` at `c668277`: stable alias UUIDs, manifests, persona/runtime-profile version lineages, active pointers, private OKF roots, process-restart reopening, safe bounded export/import, and foundational alias/conversation CLI all execute from the versioned local store.
 
 `E-002` verifies `A-002` and `A-003` at `59a0c4e`: ordered attributed event history, speech-stage truth, restart resumption, primary transcript review, JSON export, and deletion execute from SQLite and the structured CLI.

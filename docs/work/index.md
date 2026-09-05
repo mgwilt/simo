@@ -3,6 +3,11 @@
 ## Active
 
 - [Conversational identities and improvement lab](W-20260802-conversational-identities/) - Implements persisted aliases, reviewable multi-turn history, private learning, LiveKit pairing, and bounded autonomous tuning.
+- [Breeze TTS Performance on Apple Silicon](W-20260904-breeze-mps-performance/) - Mobile listening controls and server-local results; performance and physical acceptance remain independent gates.
+
+## Blocked
+
+None.
 
 ## Archive
 

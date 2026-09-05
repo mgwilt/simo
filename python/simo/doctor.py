@@ -134,7 +134,7 @@ def _breeze_service_check(config: RuntimeConfig) -> Check:
     try:
         connection.request("GET", parsed.path)
         response = connection.getresponse()
-        raw = cast(object, json.loads(response.read(16_384)))
+        raw = cast(object, json.loads(response.read(65_536)))
     except (OSError, json.JSONDecodeError) as error:
         return Check("Breeze service", False, True, f"unavailable at {health_url}: {error}")
     finally:

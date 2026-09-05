@@ -136,7 +136,13 @@ class LanSiteTests(unittest.TestCase):
                 allowed_hosts=frozenset({"simo.local"}),
                 https_port=8443,
             )
-            with patch("simo.lan_site.BreezeHTTPSynthesizer", _Synthesizer):
+            with (
+                patch("simo.lan_site.BreezeHTTPSynthesizer", _Synthesizer),
+                patch(
+                    "simo.lan_site.breeze_health",
+                    return_value={"status": "ready", "runtime_fingerprint": "test"},
+                ),
+            ):
                 first = asyncio.run(issuer.preview("warm-companion"))
                 cached = asyncio.run(issuer.preview("warm-companion"))
 

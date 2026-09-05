@@ -15,6 +15,8 @@ simo:
 ---
 # Acceptance
 
+- [x] **A-018 — Live session controls:** Validated same-origin prompt, voice-instruction and response-budget edits apply to subsequent work without restarting, preserve immutable alias profiles, and reject stale/invalid writes. Focused tests cover live propagation and response segmentation; mobile controls use radio buttons. CLI/TLS checks establish deployment, not perceptual speaker identity or physical playback. Formal acceptance benchmarking is not a prerequisite for this operator-requested manual test. E-008 records the bounded evidence.
+
 - [x] **A-001 — Alias persistence:** Stable aliases, persona versions, runtime profiles, active pointers, and private OKF roots survive restart and support lossless export/import. Proven by `E-001` at `c668277`.
 - [x] **A-002 — Conversation history:** An indexed local store persists ordered participant-attributed events, final user text, generated/submitted/spoken assistant stages, interruption state, timing, and version references. Proven by `E-002` at `59a0c4e`.
 - [x] **A-003 — Structured CLI:** Alias and conversation create/list/show/export/delete/resume commands have human-readable and JSON contracts with deterministic tests. Proven by `E-001` and `E-002` at `c668277` and `59a0c4e`.

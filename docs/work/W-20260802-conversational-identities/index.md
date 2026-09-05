@@ -9,3 +9,5 @@
 - [Verification](verification.md) - Checks and evidence references.
 - [Closure](closure.md) - Reserved terminal outcome.
 - [Evidence](evidence/) - Bounded proof records.
+- [Task briefs](tasks/) - Bounded read-only reviews.
+- [Review results](results/) - Findings, corrections and remaining proof limits.

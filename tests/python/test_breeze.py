@@ -18,14 +18,19 @@ class _Response:
         self.payload = b"\x01\x00\x02\x00\x03\x00"
 
     def getheader(self, name: str, default: str) -> str:
-        return "24000" if name == "X-Sample-Rate" else default
+        return {"X-Sample-Rate": "24000", "X-Sample-Format": "s16le"}.get(name, default)
 
     def read(self, size: int) -> bytes:
         selected, self.payload = self.payload[:size], self.payload[size:]
         return selected
 
+    def read1(self, size: int) -> bytes:
+        return self.read(size)
+
 
 class _Connection:
+    sock = None
+
     def __init__(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
         self.body = b""
@@ -33,6 +38,9 @@ class _Connection:
     def request(self, method: str, path: str, *, body: bytes, headers: object) -> None:
         del method, path, headers
         self.body = body
+
+    def connect(self) -> None:
+        pass
 
     def getresponse(self) -> _Response:
         return _Response()

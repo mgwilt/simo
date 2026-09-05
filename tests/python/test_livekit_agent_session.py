@@ -100,8 +100,8 @@ class LiveKitAgentSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Simo semantic context (revision 4)", generator.prompts[0])
         instructions = cast(str, components.agent.instructions)
         self.assertTrue(instructions.startswith("Be Ada: thoughtful and precise."))
-        self.assertIn("no more than 35 words", instructions)
-        self.assertIn("Always finish the current sentence", instructions)
+        self.assertNotIn("no more than 35 words", instructions)
+        self.assertIn("Match the detail and length the user requests", instructions)
         self.assertEqual("vad", components.turn_handling.get("turn_detection"))
         self.assertEqual(
             0.6,

@@ -13,13 +13,39 @@
       <p id="status" class="status">Ready to connect</p>
       <div class="orb" id="orb" aria-hidden="true"></div>
       <button id="toggle" type="button">Start conversation</button>
+      <section class="live-controls" aria-labelledby="controls-title">
+        <h2 id="controls-title">Shape this conversation</h2>
+        <p>Apply changes without reconnecting. Conversation instructions shape what Simo says; voice instructions shape how it sounds.</p>
+        <form id="live-controls">
+          <fieldset id="controls-fields" disabled>
+            <label for="conversation-prompt">Conversation instructions</label>
+            <textarea id="conversation-prompt" rows="5" maxlength="8000" required spellcheck="true"></textarea>
+            <label for="voice-prompt">Voice instructions</label>
+            <textarea id="voice-prompt" rows="4" maxlength="2000" required spellcheck="true" aria-describedby="voice-help voice-settings"></textarea>
+            <p id="voice-help">Be specific about register, accent, age, texture and delivery. For example: “An adult feminine voice in a low register, neutral American accent, clear and softly resonant, speaking at a relaxed conversational pace.”</p>
+            <p id="voice-settings"></p>
+            <fieldset class="budget-fieldset">
+              <legend>Response budget</legend>
+              <div id="response-budget" class="radio-grid"></div>
+              <p>This is a maximum, not a required length. Ask for detail in the conversation instructions or while talking. Long answers are spoken in bounded passages.</p>
+            </fieldset>
+          </fieldset>
+          <div class="controls-actions">
+            <button id="apply-controls" type="submit" disabled>Apply now</button>
+            <button id="reload-controls" type="button">Reload settings</button>
+          </div>
+          <p id="controls-status" role="status" aria-live="polite">Loading active settings…</p>
+          <p class="controls-scope">Settings apply to this running session and reset when the server restarts. Your saved alias profile is unchanged.</p>
+        </form>
+      </section>
       <section class="palette" aria-labelledby="palette-title">
         <p class="eyebrow">MIC-FREE PREVIEW</p>
-        <h2 id="palette-title">Choose a voice direction</h2>
+        <h2 id="palette-title">Hear voice examples</h2>
+        <p>These samples do not change the conversation voice. Edit the voice instructions above to change it.</p>
         <p id="preview-copy" class="preview-copy">Loading the local voice palette…</p>
         <div id="preview-grid" class="preview-grid"></div>
         <p id="preview-status" class="preview-status" aria-live="polite"></p>
-        <audio id="preview-audio" controls preload="none" hidden></audio>
+        <button id="preview-stop" type="button" hidden>Stop audio</button>
       </section>
       <p class="notice">Audio stays on this local Simo installation. Breeze is licensed for personal, research, and non-commercial evaluation.</p>
       <audio id="remote-audio" autoplay></audio>

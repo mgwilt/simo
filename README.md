@@ -9,9 +9,39 @@ Simo is an experimental local voice-agent runtime for Apple Silicon Macs. It com
 self-hosted LiveKit audio path, local MLX models, a small native Flecs context core, and local
 persistence for conversational identities and memory.
 
-The repository currently includes a command-line interface for headless runs, persisted aliases
-and conversations, deterministic text turns, and local headset sessions. It is still a prototype:
-interfaces and stored data may change, and the live voice path requires an explicit model download.
+The repository now includes headless and live voice conversations, persisted aliases and memory,
+a trusted-LAN mobile interface, live conversation and voice-direction controls, and a dedicated
+Breeze TTS 2 performance laboratory. It is still a prototype: interfaces and stored data may
+change, and the live voice path requires explicit model downloads.
+
+## What works now
+
+- One persisted conversational identity can run locally through STT, an MLX language model,
+  Breeze speech generation, and LiveKit without sending conversation content to a hosted model.
+- The LAN page works as a microphone client or a tap-to-listen interface, with mobile-sized radio
+  controls, streaming Stop, completed WAV caching, and server-recorded listening results.
+- Conversation instructions, voice instructions, and response-token budgets can be changed with
+  **Apply now** and take effect on subsequent turns without rewriting the saved alias.
+- The owned [`breeze-tts-mps`](https://github.com/mgwilt/breeze-tts-mps/tree/simo-apple-silicon)
+  fork adds incremental MPS output and an experimental hybrid Torch/MLX generation path while
+  retaining the upstream CUDA implementation.
+
+The current Apple Silicon candidate flows through:
+
+```text
+text + voice instruction
+  -> PyTorch BF16 text preparation
+  -> MLX int8 backbone and depth generation
+  -> stateful codec decoding
+  -> bounded PCM streaming
+  -> LiveKit or browser playback
+```
+
+On the development M3 Ultra, fixed HTTPS control and resident-model cohorts measured p95
+steady-state RTF of 0.685–0.698. A separate process-startup cohort measured warm service first PCM
+at 0.280–0.304 seconds and launch-to-ready at 8.329–9.157 seconds. These are reproducible engineering
+measurements, not physical speaker-onset or perceptual acceptance; the candidate remains explicitly
+experimental until the remaining listening gates are completed.
 
 ## Local model matrix
 
@@ -21,8 +51,8 @@ overridden through the corresponding `SIMO_*_MODEL` and `SIMO_*_REVISION` enviro
 | Role | Default model | Runtime | Intent |
 | --- | --- | --- | --- |
 | Speech to text | `mlx-community/parakeet-tdt-0.6b-v3` | Parakeet MLX | Transcribe local microphone or room audio |
-| Language model | `mlx-community/Qwen3.5-4B-4bit` | MLX-LM | Generate short, context-aware replies locally |
-| Text to speech | `BreezeBlue/Breeze-TTS-2` | Isolated PyTorch MPS service | Generate designed alias speech locally; current eager MPS path is functional but not realtime |
+| Language model | `mlx-community/Qwen3.5-4B-4bit` | MLX-LM | Generate context-aware replies with a configurable response budget |
+| Text to speech | `BreezeBlue/Breeze-TTS-2` | PyTorch prefill plus MLX candidate; PyTorch rollback | Generate incremental designed speech locally |
 | Voice activity detection | Silero VAD | LiveKit Agents Silero plugin | Detect speech turns and interruptions before transcription |
 
 The setup script pins exact revisions and requires an explicit flag before downloading model
@@ -143,10 +173,41 @@ uv run simo serve --alias <alias-id> \
   --key .artifacts/lan-tls/simo-lan-key.pem
 ```
 
-The measured M3 Ultra eager path has p95 first audio of 71.87 seconds and p95 RTF of 13.51. It is
-kept as the requested default despite missing the preview target; set `SIMO_TTS_BACKEND=qwen` to
-use the former MLX-Audio backend in a new process. See the [LAN operation guide](docs/operations/lan-voice-site.md)
-for device CA trust, ports, shutdown, and the remaining physical Safari acceptance step.
+The mic-free cards stream PCM incrementally and support Stop; completed renders remain cached as
+WAVs. The live-control panel uses radio buttons for response budgets and voice choices, while
+**Apply now** updates the running process immediately. Listening ratings, preferences, notes, and
+attempt diagnostics autosave to a private local result store, so phone testing does not require
+downloading and re-uploading a report.
+
+Quality remains the default startup mode and preserves requested CFG. The reserved
+`--performance-mode fast` selector still fails closed until formal release gates pass, but an
+operator can manually test the working `mlx-int8-v1` candidate today. Start it on port 7861:
+
+```sh
+PYTHONPATH=vendor/breeze-tts UV_CACHE_DIR=/private/tmp/simo-uv-cache \
+uv run --offline --project services/breeze --frozen --with mlx==0.32.0 \
+  python services/breeze/serve.py .models/Breeze-TTS-2 \
+  --host 127.0.0.1 --port 7861 --device mps \
+  --experimental-recipe mlx-int8-v1
+```
+
+Then start the normal conversation server in another terminal with the candidate endpoint:
+
+```sh
+SIMO_BREEZE_ENDPOINT=http://127.0.0.1:7861/v1/audio/speech \
+uv run simo serve --alias <alias-id> \
+  --cert .artifacts/lan-tls/simo-lan.pem \
+  --key .artifacts/lan-tls/simo-lan-key.pem
+```
+
+Use a schema-v2 Breeze voice-design alias with CFG 4 and a uint32 seed. The candidate currently
+supports voice design, not reference-audio cloning. `--engine reference` restores full-utterance
+generation, and `SIMO_TTS_BACKEND=qwen` selects the former MLX-Audio backend in a new process.
+
+Performance is tracked separately in [Breeze MPS performance](docs/work/W-20260904-breeze-mps-performance/).
+See the [LAN operation guide](docs/operations/lan-voice-site.md) for setup, server-recorded listening,
+and scripted verification without computer use. One known rough edge remains: **End conversation**
+currently stops the supervising `simo serve` process, so restart that command before reconnecting.
 
 ## Commands
 

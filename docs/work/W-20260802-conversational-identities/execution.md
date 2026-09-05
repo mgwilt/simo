@@ -27,3 +27,4 @@ simo:
 | T-008 | Add candidate search, automatic promotion, canarying, rollback, and persona lineage | A-011, A-012 | pending |
 | T-009 | Promote durable architecture/interfaces/operations, run full verification, and close | A-013, A-014, A-015 | pending |
 | T-010 | Pin and integrate Breeze-TTS-2, benchmark MPS, serve one alias through trusted LAN HTTPS/WSS, and complete physical Safari acceptance | A-016, A-017 | active |
+| T-011 | Remove forced brevity, expose live session prompt controls, and reduce independent voice generations within a reply | A-018 | complete; E-008, physical listening unclaimed |

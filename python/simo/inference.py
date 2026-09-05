@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import http.client
 import queue
+import re
+import socket
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -241,6 +243,28 @@ class MLXAudioSynthesizer:
         return False
 
 
+class _BreezeConnection:
+    """Own the socket so cancellation interrupts a worker blocked in HTTP reads."""
+
+    def __init__(self) -> None:
+        self.cancelled = threading.Event()
+        self.socket: socket.socket | None = None
+
+    def abort(self) -> None:
+        self.cancelled.set()
+        selected = self.socket
+        if selected is not None:
+            try:
+                selected.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass  # Already closed by the producer.
+
+    def register(self, selected: socket.socket | None) -> None:
+        self.socket = selected
+        if self.cancelled.is_set():
+            self.abort()
+
+
 class BreezeHTTPSynthesizer:
     """Stream Breeze PCM from the isolated loopback inference sidecar."""
 
@@ -255,7 +279,9 @@ class BreezeHTTPSynthesizer:
         seed: int = 42,
         timeout_s: float = 180.0,
         queue_capacity: int = 4,
-        read_bytes: int = 48_000,
+        read_bytes: int = 4_800,
+        expected_runtime: str | None = None,
+        require_request_id: bool = False,
     ) -> None:
         parsed = urlparse(endpoint)
         if parsed.scheme != "http" or parsed.hostname not in {
@@ -276,13 +302,17 @@ class BreezeHTTPSynthesizer:
         self._timeout_s = timeout_s
         self._queue_capacity = queue_capacity
         self._read_bytes = read_bytes
+        self._expected_runtime = expected_runtime
+        self._require_request_id = require_request_id
+        self.response_request_id: str | None = None
 
-    async def synthesize(self, text: str) -> AsyncIterator[AudioChunk]:
+    async def synthesize(self, text: str) -> AsyncGenerator[AudioChunk, None]:
+        self.response_request_id = None
         if not text.strip():
             raise ValueError("TTS text must not be empty")
         chunks: queue.Queue[AudioChunk | Exception | object] = queue.Queue(self._queue_capacity)
-        cancelled = threading.Event()
-        producer = asyncio.create_task(asyncio.to_thread(self._produce, text, chunks, cancelled))
+        request = _BreezeConnection()
+        producer = asyncio.create_task(asyncio.to_thread(self._produce, text, chunks, request))
         try:
             while True:
                 item = await asyncio.to_thread(chunks.get)
@@ -294,26 +324,37 @@ class BreezeHTTPSynthesizer:
                     raise TypeError("invalid Breeze audio chunk")
                 yield item
         finally:
-            cancelled.set()
+            request.abort()
             try:
-                await asyncio.wait_for(producer, timeout=2.0)
+                await asyncio.wait_for(asyncio.shield(producer), timeout=2.0)
             except TimeoutError:
-                producer.cancel()
+                # The socket is shut down; the worker owns close and its final
+                # queue sentinel. Cancelling a to_thread task cannot kill it.
+                pass
 
     def _produce(
         self,
         text: str,
         chunks: queue.Queue[AudioChunk | Exception | object],
-        cancelled: threading.Event,
+        request: _BreezeConnection,
     ) -> None:
+        cancelled = request.cancelled
         connection: http.client.HTTPConnection | None = None
         try:
+            if cancelled.is_set():
+                return
             port = self._endpoint.port or 80
             connection = http.client.HTTPConnection(
                 self._host,
                 port,
-                timeout=self._timeout_s,
+                timeout=min(2.0, self._timeout_s),
             )
+            connection.connect()
+            request.register(connection.sock)
+            if cancelled.is_set():
+                return
+            if connection.sock is not None:
+                connection.sock.settimeout(self._timeout_s)
             body = urlencode(
                 {
                     "text": text,
@@ -325,29 +366,47 @@ class BreezeHTTPSynthesizer:
             path = self._endpoint.path
             if self._endpoint.query:
                 path = f"{path}?{self._endpoint.query}"
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body)),
+                "Accept": "audio/pcm",
+            }
+            if self._expected_runtime is not None:
+                headers["X-Breeze-Runtime"] = self._expected_runtime
             connection.request(
                 "POST",
                 path,
                 body=body,
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Content-Length": str(len(body)),
-                    "Accept": "audio/pcm",
-                },
+                headers=headers,
             )
+            if cancelled.is_set():
+                request.abort()
+                return
             response = connection.getresponse()
             if response.status != 200:
                 detail = response.read(4_096).decode("utf-8", errors="replace")
                 raise RuntimeError(f"Breeze service returned HTTP {response.status}: {detail}")
             try:
-                sample_rate = int(response.getheader("X-Sample-Rate", "24000"))
+                sample_rate = int(response.getheader("X-Sample-Rate", ""))
             except ValueError as error:
                 raise RuntimeError("Breeze service returned an invalid sample rate") from error
-            if sample_rate <= 0:
+            if sample_rate != 24_000:
                 raise RuntimeError("Breeze service returned an invalid sample rate")
+            if response.getheader("X-Sample-Format", "") != "s16le":
+                raise RuntimeError("Breeze service returned an invalid sample format")
+            if (
+                self._expected_runtime is not None
+                and response.getheader("X-Breeze-Runtime", "") != self._expected_runtime
+            ):
+                raise RuntimeError("Breeze runtime changed during synthesis")
+            request_id = response.getheader("X-Breeze-Request-ID", "")
+            if re.fullmatch(r"api-[0-9a-f]{32}", request_id):
+                self.response_request_id = request_id
+            elif self._require_request_id:
+                raise RuntimeError("Breeze service returned an invalid request ID")
             carry = b""
             while not cancelled.is_set():
-                payload = response.read(self._read_bytes)
+                payload = response.read1(self._read_bytes)
                 if not payload:
                     break
                 payload = carry + payload

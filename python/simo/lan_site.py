@@ -5,33 +5,68 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import io
+import json
 import secrets
 import shutil
 import signal
 import socket
 import tempfile
 import wave
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, cast
 from urllib.parse import urlparse
 from uuid import uuid4
 
+import anyio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
+from starlette.types import Receive, Scope, Send
 
-from simo.config import RuntimeConfig
+from simo.breeze import health as breeze_health
+from simo.config import RuntimeConfig, TTSBackend
 from simo.inference import BreezeHTTPSynthesizer
+from simo.live_controls import ConversationSettings, LiveConversationControls, StaleSettingsError
 from simo.livekit_local_server import LocalLiveKitServer
 from simo.livekit_room import LiveKitRoomConfig
-from simo.livekit_runtime import LiveKitAliasRunRequest, LiveKitAliasRuntime
+from simo.livekit_runtime import (
+    LiveKitAliasRunRequest,
+    LiveKitAliasRuntime,
+    config_for_alias_profile,
+)
 from simo.persistence import SimoStore
 
 _LOOPBACK: Final = "127.0.0.1"
 _BOT_IDENTITY: Final = "simo-alias"
 _HUMAN_IDENTITY: Final = "simo-browser"
+_MAX_PREVIEW_BYTES: Final = 120 * 24_000 * 2
+
+
+class _PreviewResponse(StreamingResponse):
+    def __init__(
+        self,
+        source: AsyncGenerator[bytes, None],
+        release: Callable[[], None],
+        *,
+        headers: dict[str, str],
+    ) -> None:
+        self._source = source
+        self._release = release
+        super().__init__(source, media_type="audio/pcm", headers=headers)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                try:
+                    async with aclosing(self._source):
+                        pass
+                finally:
+                    self._release()
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +175,162 @@ class LanSiteResult:
     close_reason: str
 
 
-class _BrowserSessionIssuer:
+class VoicePreviewService:
+    def __init__(
+        self,
+        config: RuntimeConfig,
+    ) -> None:
+        self._config = config
+        self._preview_lock = asyncio.Lock()
+        self._preview_cache = config.repository / ".artifacts" / "breeze-previews"
+        self.app = FastAPI(title="Simo LAN voice session", docs_url=None, redoc_url=None)
+        self.app.get("/api/health")(self.health)
+        self.app.get("/api/previews")(self.previews)
+        self.app.post("/api/previews/{preset_id}")(self.preview)
+        self.app.post("/api/previews/{preset_id}/stream")(self.preview_stream)
+
+    async def health(self) -> dict[str, str]:
+        return {"status": "ready"}
+
+    async def previews(self) -> dict[str, object]:
+        fingerprint = await self._runtime_fingerprint()
+        return {
+            "text": VOICE_PREVIEW_PRESETS[0].text,
+            "render_note": "Samples stream into a bounded complete-clip buffer before smooth playback starts.",
+            "presets": [
+                {
+                    "id": preset.preset_id,
+                    "label": preset.label,
+                    "description": preset.description,
+                    "instruction": preset.instruction,
+                    "cached": self._preview_path(preset, fingerprint).is_file(),
+                }
+                for preset in VOICE_PREVIEW_PRESETS
+            ],
+        }
+
+    async def preview(self, preset_id: str) -> Response:
+        preset, path, fingerprint, cache_status = await self._prepare_preview(preset_id)
+        try:
+            async with aclosing(self._preview_pcm(preset, path, fingerprint)) as source:
+                async for _ in source:
+                    pass
+            payload = path.read_bytes()
+        finally:
+            self._preview_lock.release()
+        return Response(
+            payload,
+            media_type="audio/wav",
+            headers={
+                "Cache-Control": "private, no-cache",
+                "X-Simo-Cache": cache_status,
+                "X-Simo-Runtime-Fingerprint": fingerprint,
+            },
+        )
+
+    async def preview_stream(self, preset_id: str) -> Response:
+        preset, path, fingerprint, cache_status = await self._prepare_preview(preset_id)
+        return _PreviewResponse(
+            self._preview_pcm(preset, path, fingerprint),
+            self._preview_lock.release,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Simo-Cache": cache_status,
+                "X-Simo-Runtime-Fingerprint": fingerprint,
+                "X-Sample-Rate": "24000",
+                "X-Sample-Format": "s16le",
+            },
+        )
+
+    async def _runtime_fingerprint(self) -> str:
+        try:
+            payload = await asyncio.to_thread(breeze_health, self._config)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=503, detail="Breeze is unavailable") from error
+        fingerprint = payload.get("runtime_fingerprint")
+        if payload.get("status") != "ready" or not isinstance(fingerprint, str) or not fingerprint:
+            raise HTTPException(status_code=503, detail="Breeze runtime identity is unavailable")
+        return fingerprint
+
+    async def _prepare_preview(self, preset_id: str) -> tuple[VoicePreviewPreset, Path, str, str]:
+        preset = next(
+            (item for item in VOICE_PREVIEW_PRESETS if item.preset_id == preset_id),
+            None,
+        )
+        if preset is None:
+            raise HTTPException(status_code=404, detail="Unknown voice preview")
+        fingerprint = await self._runtime_fingerprint()
+        path = self._preview_path(preset, fingerprint)
+        if self._preview_lock.locked():
+            raise HTTPException(status_code=409, detail="A voice preview is already running")
+        await self._preview_lock.acquire()
+        return preset, path, fingerprint, "HIT" if path.is_file() else "MISS"
+
+    async def _preview_pcm(
+        self, preset: VoicePreviewPreset, path: Path, fingerprint: str
+    ) -> AsyncGenerator[bytes, None]:
+        if path.is_file():
+            with wave.open(str(path), "rb") as cached:
+                if (cached.getnchannels(), cached.getsampwidth(), cached.getframerate()) != (
+                    1,
+                    2,
+                    24_000,
+                ) or cached.getnframes() * 2 > _MAX_PREVIEW_BYTES:
+                    raise RuntimeError("Invalid cached preview PCM")
+                while payload := cached.readframes(2400):
+                    yield payload
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(f".{uuid4().hex}.tmp")
+        synthesizer = BreezeHTTPSynthesizer(
+            self._config.tts_endpoint,
+            instruction=preset.instruction,
+            cfg_scale=self._config.tts_cfg_scale,
+            seed=preset.seed,
+            timeout_s=self._config.tts_timeout_s,
+            expected_runtime=fingerprint,
+        )
+        total_bytes = 0
+        try:
+            with wave.open(str(temporary), "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(24_000)
+                async with aclosing(synthesizer.synthesize(preset.text)) as chunks:
+                    async for chunk in chunks:
+                        total_bytes += len(chunk.pcm_s16le)
+                        if (
+                            chunk.sample_rate != 24_000
+                            or len(chunk.pcm_s16le) % 2
+                            or total_bytes > _MAX_PREVIEW_BYTES
+                        ):
+                            raise RuntimeError("Preview exceeded its bounded PCM contract")
+                        output.writeframesraw(chunk.pcm_s16le)
+                        yield chunk.pcm_s16le
+            if not total_bytes:
+                raise RuntimeError("Breeze returned no preview audio")
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _preview_path(self, preset: VoicePreviewPreset, runtime_fingerprint: str) -> Path:
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "instruction": preset.instruction,
+                    "text": preset.text,
+                    "seed": preset.seed,
+                    "model": self._config.tts.revision,
+                    "cfg_scale": self._config.tts_cfg_scale,
+                    "runtime": runtime_fingerprint,
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()[:12]
+        return self._preview_cache / f"{preset.preset_id}-{fingerprint}.wav"
+
+
+class _BrowserSessionIssuer(VoicePreviewService):
     def __init__(
         self,
         room: LiveKitRoomConfig,
@@ -149,21 +339,19 @@ class _BrowserSessionIssuer:
         alias_name: str,
         allowed_hosts: frozenset[str],
         https_port: int,
+        live_controls: LiveConversationControls | None = None,
     ) -> None:
+        super().__init__(config)
         self._room = room
-        self._config = config
         self._alias_name = alias_name
         self._allowed_hosts = frozenset(host.lower() for host in allowed_hosts)
         self._https_port = https_port
-        self._preview_lock = asyncio.Lock()
-        self._preview_cache = config.repository / ".artifacts" / "breeze-previews"
-        self.app = FastAPI(title="Simo LAN voice session", docs_url=None, redoc_url=None)
+        self._live_controls = live_controls
         self.app.post("/api/session")(self.issue)
-        self.app.get("/api/health")(self.health)
-        self.app.get("/api/previews")(self.previews)
-        self.app.post("/api/previews/{preset_id}")(self.preview)
+        self.app.get("/api/controls")(self.controls)
+        self.app.put("/api/controls")(self.update_controls)
 
-    async def issue(self, request: Request) -> dict[str, str]:
+    def _validated_host(self, request: Request) -> str:
         host_header = request.headers.get("host", "")
         try:
             parsed = urlparse(f"//{host_header}")
@@ -173,78 +361,54 @@ class _BrowserSessionIssuer:
             raise HTTPException(status_code=400, detail="Invalid LAN host") from error
         if host not in self._allowed_hosts or port != self._https_port:
             raise HTTPException(status_code=400, detail="Invalid LAN host")
+        return host_header
+
+    async def controls(self, request: Request) -> dict[str, object]:
+        self._validated_host(request)
+        if self._live_controls is None:
+            raise HTTPException(status_code=503, detail="Live controls are unavailable")
+        return {
+            **self._live_controls.snapshot().as_dict(),
+            "voice_editable": self._live_controls.voice_editable,
+            "scope": "This running session only; alias versions are unchanged",
+            "cfg_scale": self._config.tts_cfg_scale,
+            "seed": self._config.tts_seed,
+        }
+
+    async def update_controls(self, request: Request) -> dict[str, object]:
+        host = self._validated_host(request)
+        if request.headers.get("origin", "").lower() != f"https://{host.lower()}":
+            raise HTTPException(status_code=403, detail="Same-origin request required")
+        if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
+            raise HTTPException(status_code=415, detail="JSON required")
+        if self._live_controls is None:
+            raise HTTPException(status_code=503, detail="Live controls are unavailable")
+        body = bytearray()
+        try:
+            async with asyncio.timeout(5):
+                async for chunk in request.stream():
+                    body.extend(chunk)
+                    if len(body) > 48_000:
+                        raise HTTPException(status_code=413, detail="Settings body too large")
+            payload = cast(object, json.loads(body))
+            if not isinstance(payload, dict):
+                raise TypeError("Settings must be a JSON object")
+            self._live_controls.update(cast(dict[str, object], payload))
+        except StaleSettingsError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except (ValueError, TypeError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        except TimeoutError as error:
+            raise HTTPException(status_code=408, detail="Settings upload timed out") from error
+        return await self.controls(request)
+
+    async def issue(self, request: Request) -> dict[str, str]:
+        host_header = self._validated_host(request)
         return {
             "aliasName": self._alias_name,
-            # Follow the address the browser actually used. This matters when a
-            # device can reach the IPv4 fallback but cannot resolve mDNS.
             "serverUrl": f"wss://{host_header}",
             "participantToken": self._room.issue_join_token(),
         }
-
-    async def health(self) -> dict[str, str]:
-        return {"status": "ready"}
-
-    async def previews(self) -> dict[str, object]:
-        return {
-            "text": VOICE_PREVIEW_PRESETS[0].text,
-            "render_note": "An uncached sample can take about one minute on the current MPS path.",
-            "presets": [
-                {
-                    "id": preset.preset_id,
-                    "label": preset.label,
-                    "description": preset.description,
-                    "instruction": preset.instruction,
-                    "cached": self._preview_path(preset).is_file(),
-                }
-                for preset in VOICE_PREVIEW_PRESETS
-            ],
-        }
-
-    async def preview(self, preset_id: str) -> Response:
-        preset = next(
-            (item for item in VOICE_PREVIEW_PRESETS if item.preset_id == preset_id),
-            None,
-        )
-        if preset is None:
-            raise HTTPException(status_code=404, detail="Unknown voice preview")
-        path = self._preview_path(preset)
-        cache_status = "HIT"
-        async with self._preview_lock:
-            if not path.is_file():
-                cache_status = "MISS"
-                synthesizer = BreezeHTTPSynthesizer(
-                    self._config.tts_endpoint,
-                    instruction=preset.instruction,
-                    cfg_scale=self._config.tts_cfg_scale,
-                    seed=preset.seed,
-                    timeout_s=self._config.tts_timeout_s,
-                )
-                pcm = bytearray()
-                sample_rate = 24_000
-                async for chunk in synthesizer.synthesize(preset.text):
-                    pcm.extend(chunk.pcm_s16le)
-                    sample_rate = chunk.sample_rate
-                if not pcm:
-                    raise HTTPException(status_code=502, detail="Breeze returned no preview audio")
-                payload = _wav_s16le(bytes(pcm), sample_rate)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                temporary = path.with_suffix(f".{uuid4().hex}.tmp")
-                temporary.write_bytes(payload)
-                temporary.replace(path)
-            payload = path.read_bytes()
-        return Response(
-            payload,
-            media_type="audio/wav",
-            headers={"Cache-Control": "private, max-age=86400", "X-Simo-Cache": cache_status},
-        )
-
-    def _preview_path(self, preset: VoicePreviewPreset) -> Path:
-        fingerprint = hashlib.sha256(
-            (
-                f"{preset.instruction}\n{preset.text}\n{preset.seed}\n{self._config.tts.revision}"
-            ).encode()
-        ).hexdigest()[:12]
-        return self._preview_cache / f"{preset.preset_id}-{fingerprint}.wav"
 
 
 async def run_lan_site(
@@ -260,6 +424,18 @@ async def run_lan_site(
     """Run one browser-scoped alias room until interrupted or disconnected."""
 
     alias = store.get_alias(settings.alias_id)
+    effective = config_for_alias_profile(store, settings.alias_id, config)
+    persona = next(
+        item
+        for item in store.list_persona_versions(settings.alias_id)
+        if item.version == alias.active_persona_version
+    )
+    live_controls = LiveConversationControls(
+        ConversationSettings(
+            persona.instructions, effective.tts_instruction, effective.text_max_tokens
+        ),
+        voice_editable=effective.tts_backend is TTSBackend.BREEZE,
+    )
     livekit = await _start_lan_livekit(settings, livekit_binary)
     run_id = uuid4().hex[:12]
     room_name = f"simo-lan-{run_id}"
@@ -283,10 +459,11 @@ async def run_lan_site(
     )
     issuer = _BrowserSessionIssuer(
         human_room,
-        config,
+        effective,
         alias_name=alias.display_name,
         allowed_hosts=frozenset({settings.hostname, settings.node_ip}),
         https_port=settings.https_port,
+        live_controls=live_controls,
     )
     backend_port = _available_port()
     backend = uvicorn.Server(
@@ -316,7 +493,7 @@ async def run_lan_site(
             conversation_id=conversation_id,
             complete_on_close=False,
         )
-        runtime = LiveKitAliasRuntime(store, config, bot_room)
+        runtime = LiveKitAliasRuntime(store, config, bot_room, live_controls=live_controls)
         bot_task = asyncio.create_task(runtime.run(request), name="simo-lan-alias")
         for selected_signal in (signal.SIGINT, signal.SIGTERM):
             try:

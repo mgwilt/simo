@@ -4,7 +4,7 @@ title: Conversational identities checkpoint
 description: Captures the current resumable state for durable aliases, Breeze-TTS-2, and trusted-LAN browser acceptance.
 tags: [work, checkpoint, aliases, breeze, livekit, lan]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T14:25:21Z }
+generated: { by: process:simo-conversation-integration, at: 2026-09-05T17:34:00Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-CHECKPOINT
@@ -14,6 +14,14 @@ simo:
   work: { parent_id: W-20260802-conversational-identities }
 ---
 # Checkpoint
+
+Current T-011 checkpoint,2026-09-05: root `process:simo-conversation-integration` completed bounded live session controls and response grouping under L-022. Base `2ffe040c322139174ffd8269625c8a34dcd66ccd` plus prior dirty performance work; no commit/push, no engine/dependency/profile mutations. E-008 and R-101/R-102 record tests, review corrections, proof gaps and launch. The live UI resumes the existing conversation on `https://192.168.1.83:8443` using the unchanged Fast sidecar on7861. Session revision1 selects a non-brief prompt and1024-token budget; original generic voice instruction/CFG4/seed42 remain editable/unchanged respectively. Server restart restores saved defaults; no physical audio/browser or release acceptance is claimed.
+
+Next action: operator refreshes the LAN page and tests conversation/voice instructions using Apply now. Stable speaker conditioning remains a separate open limitation, not a promise that grouping fixed perceived identity. The performance project stays read-only after L-021; this plan released L-022 after final runtime verification and is read-only. Later overlapping mutations require serialized ownership. Broader identity and physical-media gates remain open. Use the verified IP URL: the historical configured hostname failed local name resolution during the final check.
+
+## Historical integration checkpoint
+
+The following2026-09-02 baseline is preserved as history, including its earlier addresses, measured timings and physical Safari acceptance boundary. E-007 is not rewritten. The current user requests CLI/script verification and no Safari automation.
 
 - Base revision: `f5a039f5fa23877dc2aa39b234280b00c8909c6c`.
 - Integration state: Simo implementation commit `c037f5f`; owned Breeze fork commit `a38d7d1`; the fork pin and ownership documentation are included in this follow-up.

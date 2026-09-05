@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import AsyncGenerator, AsyncIterable, Callable, Iterator
 from dataclasses import dataclass
 from typing import Protocol
 
+from livekit import rtc
 from livekit.agents import llm, vad
 from livekit.agents.voice import Agent, AgentSession, room_io
+from livekit.agents.voice.agent import ModelSettings
 from livekit.agents.voice.turn import TurnHandlingOptions
 from livekit.plugins import silero
 
@@ -16,8 +20,9 @@ from simo.adapters.livekit.providers import (
     LocalSTT,
     LocalTTS,
 )
-from simo.config import RuntimeConfig
+from simo.config import RuntimeConfig, TTSBackend
 from simo.inference import SpeechRecognizer, SpeechSynthesizer, TextGenerator
+from simo.live_controls import VOICE_RESPONSE_GUIDANCE, LiveConversationControls
 from simo.semantic_context import SemanticContextSnapshot, format_semantic_context
 
 
@@ -70,11 +75,60 @@ class LiveKitAgentSessionComponents:
     room_options: room_io.RoomOptions
 
 
-_VOICE_TURN_CONTRACT = (
-    "Voice response contract: reply with one or two complete short sentences totaling no "
-    "more than 35 words. Always finish the current sentence. Do not use lists, headings, "
-    "stage directions, or preambles."
-)
+def speech_passages(text: str, *, max_chars: int = 600) -> Iterator[str]:
+    """Keep ordinary replies together; preserve every character in bounded long replies.
+
+    This is a conservative speech-duration budget, not a model token/EOS guarantee.
+    """
+    if max_chars < 1:
+        raise ValueError("Speech passage limit must be positive")
+    while len(text) > max_chars:
+        prefix = text[:max_chars]
+        boundaries = list(re.finditer(r"[.!?\u3002\uff01\uff1f]\s+", prefix))
+        end = boundaries[-1].end() if boundaries else 0
+        if end == 0 or end < max_chars // 2:
+            spaces = list(re.finditer(r"\s+", prefix))
+            end = spaces[-1].end() if spaces else max_chars
+        yield text[:end]
+        text = text[end:]
+    if text:
+        yield text
+
+
+class PassageVoiceAgent(Agent):
+    """Synthesize a Breeze reply in passages, not independently designed sentences."""
+
+    def __init__(
+        self,
+        *,
+        instructions: str,
+        chat_ctx: llm.ChatContext,
+        provider_factory: Callable[[], LocalTTS],
+    ) -> None:
+        super().__init__(instructions=instructions, chat_ctx=chat_ctx)  # pyright: ignore[reportUnknownMemberType]
+        self._provider_factory = provider_factory
+
+    async def tts_node(
+        self,
+        text: AsyncIterable[str],
+        model_settings: ModelSettings,
+    ) -> AsyncGenerator[rtc.AudioFrame, None]:
+        del model_settings
+        # One immutable voice selection covers all passages in this reply.
+        provider = self._provider_factory()
+        parts: list[str] = []
+        size = 0
+        async for part in text:
+            size += len(part)
+            if size > 32_768:
+                raise ValueError("Spoken reply exceeds the bounded text buffer")
+            parts.append(part)
+        for passage in speech_passages("".join(parts)):
+            if not passage.strip():
+                continue
+            async with provider.synthesize(passage) as stream:
+                async for event in stream:
+                    yield event.frame
 
 
 def build_livekit_agent_session(
@@ -89,6 +143,8 @@ def build_livekit_agent_session(
     event_sink: InferenceEventSink,
     chat_context: llm.ChatContext | None = None,
     loaded_vad: vad.VAD | None = None,
+    live_controls: LiveConversationControls | None = None,
+    synthesizer_factory: Callable[[], SpeechSynthesizer] | None = None,
 ) -> LiveKitAgentSessionComponents:
     """Freeze models, persona, turn mechanics, and RoomIO scope for one session."""
 
@@ -113,6 +169,7 @@ def build_livekit_agent_session(
         model=config.text.model_id,
         context_provider=semantic_context,
         event_sink=event_sink,
+        live_controls=live_controls,
     )
     local_tts = LocalTTS(
         synthesizer,
@@ -149,9 +206,23 @@ def build_livekit_agent_session(
         aec_warmup_duration=None,
         user_away_timeout=None,
     )
-    agent = Agent(
-        instructions=f"{persona_instructions.strip()}\n\n{_VOICE_TURN_CONTRACT}",
-        chat_ctx=chat_context or llm.ChatContext.empty(),
+
+    def turn_tts() -> LocalTTS:
+        if synthesizer_factory is None:
+            return local_tts
+        return LocalTTS(
+            synthesizer_factory(),
+            sample_rate=24_000,
+            model=config.tts.model_id,
+            event_sink=event_sink,
+        )
+
+    instructions = f"{persona_instructions.strip()}\n\n{VOICE_RESPONSE_GUIDANCE}"
+    history = chat_context or llm.ChatContext.empty()
+    agent = (
+        PassageVoiceAgent(instructions=instructions, chat_ctx=history, provider_factory=turn_tts)
+        if config.tts_backend is TTSBackend.BREEZE
+        else Agent(instructions=instructions, chat_ctx=history)
     )
     options = room_io.RoomOptions(
         text_input=False,

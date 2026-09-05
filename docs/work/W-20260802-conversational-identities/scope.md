@@ -4,7 +4,7 @@ title: Conversational identities scope
 description: Defines included capabilities and the privacy, authority, evidence, and external-effect boundaries for durable conversational aliases.
 tags: [work, scope, privacy, authority, aliases, livekit]
 status: draft
-generated: { by: codex/gpt-5.6-sol, at: 2026-09-02T07:02:46Z }
+generated: { by: process:simo-performance-integration, at: 2026-09-04T22:48:33Z }
 simo:
   profile_version: 1
   stable_id: W-20260802-conversational-identities-SCOPE
@@ -16,6 +16,8 @@ simo:
 # Scope
 
 ## Included
+
+- T-011 operator exception: editable conversation instructions, Breeze voice instructions and response budgets are bounded process-local overrides, not promotion or edits to immutable persona/profile versions. Browser revisions select future inference jobs; current jobs keep their snapshots. Normal response length is no longer constrained to two sentences. Manual LAN testing remains authorized without formal performance acceptance.
 
 - Local application-data storage for stable aliases, persona and runtime-profile versions, private OKF bundles, conversations, memories, experiments, promotions, exports, and deletion.
 - Session-scoped Flecs worlds and participant-aware immutable context snapshots for multiple aliases and conversations.
@@ -32,6 +34,7 @@ simo:
 
 ## Excluded and protected
 
+- New Breeze inference optimization, quantization, progressive-preview latency, and runtime recipe work belongs to [Breeze performance](../W-20260904-breeze-mps-performance/); existing integration history and physical conversation acceptance remain here.
 - Raw audio retention is off unless an experiment explicitly enables it.
 - Persona, model output, transcript content, or learned knowledge cannot grant tools, permissions, or authorization.
 - Automatic improvement cannot modify code, platform permissions, retention rules, learning safety policy, evaluation floors, or experiment budgets.

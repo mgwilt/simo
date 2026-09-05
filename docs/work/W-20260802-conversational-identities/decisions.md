@@ -15,6 +15,14 @@ simo:
 ---
 # Decisions
 
+## D-012: Separate live operator controls from immutable identities
+
+For T-011, the LAN page edits process-local conversation/voice instructions and a bounded token budget through revision-checked same-origin JSON. Each LLM job freezes its effective prompt and budget; each Breeze speech reply freezes one synthesizer selection across all passages. Saved persona/runtime versions and permission/retention policy remain unchanged. Server restart restores the saved persona and voice plus startup budget. These manual overrides are not automatic promotion under D-008.
+
+Remove the adapter's hard-coded two-sentence/35-word contract and raise the environment default from64 to512 text tokens. The LAN runtime uses persona instructions, not the runtime-profile's historical `prompt`/`response` fields. An editable prompt replaces the initial system message in the local LLM request instead of competing with it. Ordinary Breeze replies are one generation; long replies are losslessly partitioned at600 characters with sentence/whitespace preference and a hard fallback. This limits independent generations but does not lock cross-turn speaker identity; Fast remains instruction-only and rejects reference audio. Character bounds cannot guarantee codec EOS/duration. Qwen retains its original sentence adapter and rejects voice-instruction edits.
+
+Promotion target: [LAN operations](../../operations/lan-voice-site.md). Model/engine optimization remains in the separate performance project; no subjective audio acceptance is claimed from scripts.
+
 ## D-001: Use local application data with portable boundaries
 
 The platform data directory owns aliases and a versioned SQLite store. `SIMO_DATA_DIR` overrides the platform default for tests and portable operation. Alias export/import includes its manifest and OKF bundle plus explicitly selected conversation data.

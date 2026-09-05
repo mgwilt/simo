@@ -182,10 +182,70 @@ def build_parser() -> argparse.ArgumentParser:
     breeze_commands = breeze.add_subparsers(dest="breeze_command", required=True)
     breeze_doctor = breeze_commands.add_parser("doctor", help="inspect the Breeze sidecar")
     breeze_doctor.add_argument("--json", action="store_true", dest="as_json")
+    listening_prepare = breeze_commands.add_parser(
+        "prepare-listening", help="prepare a blinded recorded comparison deck without inference"
+    )
+    listening_prepare.add_argument("--comparison", required=True, type=Path)
+    listening_prepare.add_argument("--expected-sha", required=True)
+    listening_prepare.add_argument("--output-dir", required=True, type=Path)
+    listening_verify = breeze_commands.add_parser(
+        "verify-listening", help="verify a local listening export without accepting Fast"
+    )
+    listening_verify.add_argument("--deck", required=True, type=Path)
+    listening_verify.add_argument("--key", required=True, type=Path)
+    listening_verify.add_argument("--ratings", required=True, type=Path)
+    preview_site = breeze_commands.add_parser(
+        "serve-preview", help="serve isolated experimental MLX previews without a conversation"
+    )
+    preview_site.add_argument("--node-ip", required=True)
+    preview_site.add_argument("--hostname")
+    preview_site.add_argument("--cert", required=True, type=Path)
+    preview_site.add_argument("--key", required=True, type=Path)
+    preview_site.add_argument("--assets", required=True, type=Path)
+    preview_site.add_argument("--https-port", type=int, default=8444)
+    preview_site.add_argument(
+        "--listening-results",
+        type=Path,
+        help="private local directory for revisioned listening results and resume",
+    )
+    preview_site.add_argument(
+        "--listening-deck",
+        type=Path,
+        help="serve an operator-prepared blinded deck through opaque clip routes",
+    )
+    preview_site.add_argument(
+        "--streaming-runtime",
+        help="opt into experimental bounded playback for this exact fingerprint",
+    )
+    preview_site.add_argument(
+        "--enable-benchmarks",
+        action="store_true",
+        help="enable fixed-corpus uncached HTTPS measurements on the isolated site",
+    )
+    preview_probe = breeze_commands.add_parser(
+        "verify-preview", help="verify LAN streaming, cancellation and WAV cache without a browser"
+    )
+    preview_probe.add_argument("--url", required=True)
+    preview_probe.add_argument("--ca-file", type=Path)
+    preview_probe.add_argument("--connect-address")
+    preview_probe.add_argument("--json", action="store_true", dest="as_json")
     breeze_benchmark = breeze_commands.add_parser(
         "benchmark", help="run the bounded M3 Ultra preview benchmark"
     )
     breeze_benchmark.add_argument("--json", action="store_true", dest="as_json")
+    breeze_benchmark.add_argument("--warmups", type=int, default=3)
+    breeze_benchmark.add_argument("--limit", type=int, default=10)
+    breeze_benchmark.add_argument("--suite", choices=("short", "long"), default="short")
+    breeze_benchmark.add_argument("--audio-dir", type=Path, default=None)
+    breeze_benchmark.add_argument(
+        "--url", help="use the operator-enabled experimental HTTPS benchmark"
+    )
+    breeze_benchmark.add_argument("--ca-file", type=Path)
+    breeze_benchmark.add_argument("--connect-address")
+    breeze_benchmark.add_argument("--instruction-id", default="default")
+    breeze_benchmark.add_argument(
+        "--seeds", default="42", help="comma-separated matched seeds, e.g. 17,29,42"
+    )
 
     lab = subcommands.add_parser("lab", help="run bounded conversational lab experiments")
     lab_commands = lab.add_subparsers(dest="lab_command", required=True)
@@ -262,12 +322,98 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         config = RuntimeConfig.from_environment(mode=requested_mode)
         if command == "breeze":
-            from simo.breeze import health, run_benchmark
+            from simo.breeze import health, run_benchmark, verify_preview_site
+
+            if _arg_str(args, "breeze_command") in ("prepare-listening", "verify-listening"):
+                from simo.breeze_listening import prepare_listening, verify_listening
+
+                listening_result = (
+                    prepare_listening(
+                        _arg_path(args, "comparison").absolute(),
+                        _arg_str(args, "expected_sha"),
+                        _arg_path(args, "output_dir").absolute(),
+                    )
+                    if _arg_str(args, "breeze_command") == "prepare-listening"
+                    else verify_listening(
+                        _arg_path(args, "deck").absolute(),
+                        _arg_path(args, "key").absolute(),
+                        _arg_path(args, "ratings").absolute(),
+                    )
+                )
+                print(json.dumps(listening_result, indent=2))
+                return 0
+
+            if _arg_str(args, "breeze_command") == "serve-preview":
+                from simo.preview_site import PreviewSiteSettings, run_preview_site
+
+                preview_settings = PreviewSiteSettings(
+                    node_ip=_arg_str(args, "node_ip"),
+                    certificate=_arg_path(args, "cert").resolve(),
+                    private_key=_arg_path(args, "key").resolve(),
+                    assets=_arg_path(args, "assets").resolve(),
+                    https_port=_arg_int(args, "https_port"),
+                    hostname=_arg_optional_str(args, "hostname"),
+                    streaming_runtime=_arg_optional_str(args, "streaming_runtime"),
+                    enable_benchmarks=_arg_bool(args, "enable_benchmarks"),
+                    listening_deck=cast(Path | None, args.listening_deck),
+                    listening_results=cast(Path | None, args.listening_results),
+                )
+
+                def preview_ready(url: str) -> None:
+                    policy = (
+                        "640ms bounded streaming"
+                        if preview_settings.streaming_runtime
+                        else "Complete-clip playback"
+                    )
+                    print(
+                        f"Experimental MLX previews: {url}. {policy}; Fast unaccepted. Ctrl-C to stop.",
+                        file=sys.stderr,
+                    )
+
+                asyncio.run(run_preview_site(config, preview_settings, ready=preview_ready))
+                return 0
+
+            if _arg_str(args, "breeze_command") == "benchmark" and _arg_optional_str(args, "url"):
+                from simo.breeze_benchmark import run_https_benchmark
+
+                if cast(Path | None, args.audio_dir) is None:
+                    raise ValueError("HTTPS benchmarks require a new --audio-dir for evidence")
+                payload = run_https_benchmark(
+                    config,
+                    url=_arg_str(args, "url"),
+                    ca_file=cast(Path | None, args.ca_file),
+                    connect_address=_arg_optional_str(args, "connect_address"),
+                    warmups=_arg_int(args, "warmups"),
+                    limit=_arg_int(args, "limit"),
+                    suite=_arg_str(args, "suite"),
+                    seeds=tuple(int(seed) for seed in _arg_str(args, "seeds").split(",")),
+                    instruction_id=_arg_str(args, "instruction_id"),
+                    audio_dir=_arg_path(args, "audio_dir"),
+                )
+                _print_structured(payload, _arg_bool(args, "as_json"))
+                return 0 if payload["completed"] is True else 1
+
+            if _arg_str(args, "breeze_command") == "verify-preview":
+                payload = verify_preview_site(
+                    config,
+                    url=_arg_str(args, "url"),
+                    ca_file=cast(Path | None, args.ca_file),
+                    connect_address=cast(str | None, args.connect_address),
+                )
+                _print_structured(payload, _arg_bool(args, "as_json"))
+                return 0
 
             payload = (
                 health(config)
                 if _arg_str(args, "breeze_command") == "doctor"
-                else run_benchmark(config)
+                else run_benchmark(
+                    config,
+                    warmups=_arg_int(args, "warmups"),
+                    limit=_arg_int(args, "limit"),
+                    seeds=tuple(int(seed) for seed in _arg_str(args, "seeds").split(",")),
+                    suite=_arg_str(args, "suite"),
+                    audio_dir=cast(Path | None, args.audio_dir),
+                )
             )
             _print_structured(payload, _arg_bool(args, "as_json"))
             return 0
