@@ -15,14 +15,14 @@ simo:
     schema_version: 1
     id: W-20260904-breeze-mps-performance
     state: active
-    mode: mutation
+    mode: read_only
     priority: p1
     accountable: process:simo-performance-integration
     created_at: 2026-09-04T22:48:33Z
-    updated_at: 2026-09-05T18:48:34Z
+    updated_at: 2026-09-05T18:50:51Z
     depends_on: []
     knowledge_refs: [interfaces/breeze-tts, operations/lan-voice-site, governance/DOC-0001-documentation-and-work-management]
-    write_paths: [README.md, vendor/breeze-tts, services/breeze, python/simo, web, tests, scripts, docs]
+    write_paths: []
     next_action: "T-023 published the owned fork through78a79bb and prepares the matching Simo checkpoint. User tests the manual Fast conversation; the known End conversation server-lifetime coupling remains open and release/physical acceptance is still unclaimed."
     blocker: null
 ---
