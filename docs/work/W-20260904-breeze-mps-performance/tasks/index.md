@@ -1,5 +1,12 @@
 # Tasks
 
+- [README commit scope verification](T-138.md) - Held reporting identity and private-artifact exclusion before publication.
+
+- [Performance chart publication review](T-137.md) - Independent source/data/claim and reproducibility check.
+
+- [README benchmark comparison audit](T-135.md) - Recorded milestones, controls and defensible chart comparisons.
+- [README inference specification audit](T-136.md) - Actual hybrid-runtime architecture and quantization coverage.
+
 - [Fast manual conversation launch compatibility](T-134.md) - Read-only endpoint/profile compatibility; no acceptance suite.
 
 - [Mobile radio listening review](T-132.md) - Tap-first layout, native controls and evidence preservation.

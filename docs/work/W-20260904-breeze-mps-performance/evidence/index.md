@@ -1,5 +1,7 @@
 # Evidence
 
+- [Reproducible README performance charts](E-024-readme-benchmarks.md) - Historical timeline, matched precision,397 scalar rows and source/specification boundaries.
+
 - [Repository publication checkpoint](E-023-repository-publication.md) - Published owned fork first, then matching Simo code, docs and gitlink; release gates remain open.
 
 - [Fast MLX manual Simo run](E-022-fast-manual-run.md) - Full conversation app started against the existing eight-bit candidate; acceptance intentionally not run.

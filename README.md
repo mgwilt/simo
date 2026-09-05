@@ -6,7 +6,7 @@
 > that may be replaced as quickly as they are tested.
 
 Simo is an experimental local voice-agent runtime for Apple Silicon Macs. It combines a
-self-hosted LiveKit audio path, local MLX models, a small native Flecs context core, and local
+self-hosted LiveKit audio path, local MLX models, a small native context core, and local
 persistence for conversational identities and memory.
 
 The repository now includes headless and live voice conversations, persisted aliases and memory,
@@ -26,22 +26,100 @@ change, and the live voice path requires explicit model downloads.
   fork adds incremental MPS output and an experimental hybrid Torch/MLX generation path while
   retaining the upstream CUDA implementation.
 
-The current Apple Silicon candidate flows through:
+## Breeze TTS performance on Apple Silicon
+
+Recorded on an **Apple M3 Ultra with 512 GiB unified memory**. The work spans Simo's streaming
+pipeline and its pinned [`breeze-tts-mps` fork](https://github.com/mgwilt/breeze-tts-mps/tree/78a79bbe7996f88766ee1885140909ca696c7055).
+These are warm, uncached synthesis measurements—not completed-preview cache hits.
+
+### Progression from the recorded evidence
+
+Recorded p95 **total RTF fell from 9.954 to 0.800**, while p95 **first PCM fell from 49.165 s to
+0.407 s** at the final HTTPS client boundary. RTF is wall time divided by generated audio duration;
+less than 1 means faster than real time. The reference buffered the whole utterance before emitting
+PCM, so the latency reduction combines incremental delivery with faster inference.
+
+![Breeze historical progression: p95 total RTF 9.954 to 0.800, and first PCM 49.165 to 0.407 seconds.](benchmarks/breeze/progression.svg)
+
+This is an **engineering milestone timeline, not a controlled speedup ablation**. Sample counts,
+output durations, implementation and transport boundaries change. The SDPA and later MLX short
+cohorts share ten prompts and seeds 17/29/42, but MLX and Torch RNG streams are not equivalent.
+The earliest two receipts have no run timestamp; their positions show implementation order, not
+elapsed time. First PCM is not audible speaker onset.
+
+### What int8 contributes
+
+The four-arm precision study holds prompts, voice instructions, seeds and generation settings
+fixed: 18 timed cases plus three warmups per arm. Int8 backbone + depth weights reduce p95
+steady-state RTF by **36.7%** versus BF16 weights (1.088 → 0.688), without lowering CFG.
+This normalizes by each generated duration; sampled outputs are not identical.
+
+![Matched weight-precision comparison: BF16/BF16 1.088, Int8/BF16 1.008, BF16/Int8 0.770, Int8/Int8 0.688 p95 steady-state RTF, with ASR word-error counts.](benchmarks/breeze/precision.svg)
+
+The ASR screen flags 3/189 reference words for BF16 and 7/189 for int8. Those are unadjudicated
+recognizer errors, not human quality scores; matched listening remains open. The experimental Fast
+candidate is available for operator testing, not release-accepted.
+
+### Measured streaming envelope
+
+The later same-host, uncached HTTPS suite contains **252 timed outputs across ten cohorts**, with
+three warmups per cohort: default short/long text and three voice instructions, each with and
+without Simo's other model weights resident. Residency means idle loaded weights, not concurrent
+STT/LLM inference.
+
+| Measurement | Recorded result | Scope |
+| --- | --- | --- |
+| p95 steady-state RTF | **0.685–0.698** | Range of ten cohort p95s; after first PCM |
+| p95 first PCM | **0.312–0.428 s** | HTTPS client arrival, not browser or acoustic onset |
+| Resident/control output consistency | **126/126 timed pairs byte-identical** | Same prompts, instructions and seeds |
+| Playback underruns | **0 in arrival replay** | Modeled player with 640 ms reserve; not physical-device proof |
+| Fresh-process launch → ready | **8.329–9.157 s** | Separate three-launch study; not OS/disk-cold startup |
+| First request / warm request → PCM | **0.939–1.337 s / 0.280–0.304 s** | Three first-use and nine warm requests; ranges, not p95 |
+
+The throughput target is p95 steady-state RTF ≤0.8. The separate ≤2 s tap-to-audible-playback,
+physical underrun and perceptual gates are **not established** by these measurements. Same-host
+HTTPS does not characterize mobile Wi-Fi jitter.
+
+### Inference implementation
+
+The owned fork and Simo integration currently use this hybrid path—not a full MLX rewrite:
 
 ```text
 text + voice instruction
   -> PyTorch BF16 text preparation
   -> MLX int8 backbone and depth generation
-  -> stateful codec decoding
+  -> PyTorch FP32 stateful codec decoding
   -> bounded PCM streaming
   -> LiveKit or browser playback
 ```
 
-On the development M3 Ultra, fixed HTTPS control and resident-model cohorts measured p95
-steady-state RTF of 0.685–0.698. A separate process-startup cohort measured warm service first PCM
-at 0.280–0.304 seconds and launch-to-ready at 8.329–9.157 seconds. These are reproducible engineering
-measurements, not physical speaker-onset or perceptual acceptance; the candidate remains explicitly
-experimental until the remaining listening gates are completed.
+| Component | Technical specification |
+| --- | --- |
+| Checkpoint | `BreezeBlue/Breeze-TTS-2` at `799624c0b4a1daa8db6d28bbd9850043c0270734` |
+| Transformer geometry | T5Gemma2 encoder: 26 layers / hidden 1,152. Qwen3 backbone: 28 layers / hidden 2,048 / 16 query, 8 KV heads. Depth: 12 layers / hidden 1,024 / 8 query, 2 KV heads |
+| CFG execution | Separate Torch conditional/unconditional prefills; one-time rotated-KV transfer; paired MLX backbone/depth decoding with CFG **4** |
+| Weight-only quantization | Affine int8, group size **64**, **196 backbone + 84 depth = 280 linear weights**; BF16 activations and KV |
+| Selected weight storage | **3,485,466,624 → 1,851,654,144 bytes (−46.875%)**, including packed scales/biases; excludes embeddings, norms, projectors, custom/output heads and codec |
+| Cache and compilation | Backbone KV grows in 128-position blocks, separate branch positions/masks, 4,096-position candidate limit; compiled backbone step and 15-codebook depth loop, SDPA; depth KV resets per audio frame |
+| Sampling | Temperature 0.9, top-k 50, top-p 1.0; explicit MLX seed, EOS termination, maximum 750 iterations; no lower-CFG speed claim |
+| Codec and wire format | Qwen3 TTS Tokenizer V2, **16 codebooks**, 24 kHz mono PCM16LE; **1,920 samples / 80 ms** per complete frame, stateful incremental decoding |
+| Streaming lifecycle | Four-frame producer queue, one active inference request; bounded browser playback, Stop/disconnect cancellation, completed-only preview caching |
+| Recorded dependencies | Torch **2.9.1**, Transformers **4.57.3**, qwen-tts **0.1.1**, MLX / MLX-Metal **0.32.0**; Metal library artifacts SHA-256 pinned |
+
+The weight-storage reduction is **not total process memory savings**: this hybrid still retains
+the Torch model. The tested 512 GiB machine is not a minimum-memory requirement. The fork retains
+upstream CUDA code, but these results validate only this Apple Silicon path.
+
+[Benchmark methods and source map](benchmarks/breeze/README.md) ·
+[All cohort results](benchmarks/breeze/results.md) ·
+[397 timed measurement rows and receipt hashes](benchmarks/breeze/measurements.json)
+
+Regenerate the charts from checked-in data, without models or network access:
+
+```sh
+python3 scripts/render_breeze_benchmarks.py
+python3 scripts/render_breeze_benchmarks.py --check
+```
 
 ## Local model matrix
 
@@ -57,19 +135,6 @@ overridden through the corresponding `SIMO_*_MODEL` and `SIMO_*_REVISION` enviro
 
 The setup script pins exact revisions and requires an explicit flag before downloading model
 weights. Run `uv run python scripts/setup_models.py` to inspect the current plan.
-
-## Why Flecs?
-
-[Flecs](https://github.com/SanderMertens/flecs) is a strong fit for Simo's live semantic state
-because an entity-component system makes changing context explicit and composable: conversations,
-participants, transcript segments, and memory claims can remain small typed components and
-relations, while systems query and update only the shapes they care about instead of growing one
-central session object or passing loose dictionaries between stages. In Simo, that means one
-bounded in-memory world per conversation, one mutation owner, and revisioned immutable snapshots
-at the model boundary, so inference code never receives native entity handles or mutable state.
-LiveKit still owns realtime audio, SQLite owns durable local data, and the OKF bundle holds
-reviewable project knowledge; the extra native complexity buys a context plane intended to remain
-inspectable, scoped, and testable as orchestration behavior grows.
 
 ## Requirements
 
@@ -255,7 +320,7 @@ git diff --check
 The main source directories are:
 
 - `python/simo/` — command-line interface and Python runtime code
-- `include/` and `src/` — native Flecs context core
+- `include/` and `src/` — native context core
 - `tests/` — Python and native tests
 - `docs/` — architecture, interfaces, operations, and active work
 - `vendor/` — pinned upstream submodules

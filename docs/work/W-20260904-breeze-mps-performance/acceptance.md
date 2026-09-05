@@ -15,6 +15,8 @@ simo:
 ---
 # Breeze performance acceptance
 
+- [x] A-010: README charts and technical specifications reproduce recorded measurements from checked-in data; matched comparisons, chronology, source/settings provenance, sample counts, units, and experimental/quality limits are explicit. Flecs copy removed from README; fork remains untouched. Eleven chart tests, independent source/data audit and documentation/static gates pass without rerunning inference; [E-024](evidence/E-024-readme-benchmarks.md). This does not close A-001/A-006/A-007.
+
 Current T-020: [E-020](evidence/E-020-process-startup.md) adds full process startup and first-use/warm measurements. Three fresh groups yield12 complete identical clips: launch-to-ready8.329–9.157s, first-use PCM0.939–1.337s, nine warm requests0.280–0.304s. These are observations, not p95/disk-cold/device proof. A-001's process-cold portion is now measured; A-001/A-006/A-007 remain open for actual playback/listening evidence. This supersedes the earlier missing-cold-start summary below, without changing historical results.
 
 Current T-019: [E-019](evidence/E-019-listening-interface.md) delivers the blinded72-clip deck and separate fresh device trial interface at the experimental LAN page. CLI preparation/verification, cryptographic recipe attribution, configured CPU DOM/Stop/retry/export, exact served PCM and request-bound fresh smoke pass. No user ratings, actual audible onset or observed device underruns have been collected. A-001/A-006/A-007 remain open; this is an evidence-collection tool, not Fast acceptance.

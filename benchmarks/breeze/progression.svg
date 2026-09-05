@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="790" viewBox="0 0 1120 790" role="img" aria-labelledby="title desc">
+<title id="title">Breeze performance progression</title><desc id="desc">Historical milestone p95 total RTF and first PCM. Different methods and sample counts; not a controlled ablation.</desc>
+<rect width="1120" height="790" fill="#f8fafc"/>
+<text x="38.00" y="44.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="29" text-anchor="start">Breeze-TTS-2 / performance progression</text>
+<text x="38.00" y="75.00" fill="#334155" font-family="Arial, sans-serif" font-size="18" text-anchor="start">Apple M3 Ultra · warm, uncached runs · lower is better · historical cohorts, not isolated speedups</text>
+<text x="38.00" y="129.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="20" text-anchor="start">p95 total RTF · seconds of wall time / second of audio</text>
+<line x1="108.00" y1="330.00" x2="1015.00" y2="330.00" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="335.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">0</text>
+<line x1="108.00" y1="300.83" x2="1015.00" y2="300.83" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="305.83" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">2</text>
+<line x1="108.00" y1="271.67" x2="1015.00" y2="271.67" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="276.67" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">4</text>
+<line x1="108.00" y1="242.50" x2="1015.00" y2="242.50" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="247.50" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">6</text>
+<line x1="108.00" y1="213.33" x2="1015.00" y2="213.33" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="218.33" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">8</text>
+<line x1="108.00" y1="184.17" x2="1015.00" y2="184.17" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="189.17" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">10</text>
+<line x1="108.00" y1="315.42" x2="1015.00" y2="315.42" stroke="#64748b" stroke-width="2" stroke-dasharray="6 5"/>
+<text x="1008.00" y="308.42" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="end">1.0 = real time</text>
+<circle cx="145.00" cy="184.83" r="6" stroke="#2563eb" stroke-width="3" fill="#2563eb"/>
+<text x="145.00" y="170.83" fill="#2563eb" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">9.954</text>
+<line x1="145.00" y1="184.83" x2="353.00" y2="227.73" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="353.00" cy="227.73" r="6" stroke="#2563eb" stroke-width="3" fill="#f8fafc"/>
+<text x="353.00" y="213.73" fill="#2563eb" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">7.013</text>
+<line x1="353.00" y1="227.73" x2="561.00" y2="279.80" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="561.00" cy="279.80" r="6" stroke="#2563eb" stroke-width="3" fill="#2563eb"/>
+<text x="561.00" y="265.80" fill="#2563eb" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">3.442</text>
+<line x1="561.00" y1="279.80" x2="769.00" y2="318.34" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="769.00" cy="318.34" r="6" stroke="#2563eb" stroke-width="3" fill="#2563eb"/>
+<text x="769.00" y="345.34" fill="#2563eb" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">0.799</text>
+<line x1="769.00" y1="318.34" x2="977.00" y2="318.34" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="977.00" cy="318.34" r="6" stroke="#2563eb" stroke-width="3" fill="#2563eb"/>
+<text x="977.00" y="345.34" fill="#2563eb" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">0.800</text>
+<text x="38.00" y="384.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="20" text-anchor="start">p95 first PCM · seconds · logarithmic axis</text>
+<line x1="108.00" y1="585.00" x2="1015.00" y2="585.00" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="590.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">0.1</text>
+<line x1="108.00" y1="526.67" x2="1015.00" y2="526.67" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="531.67" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">1</text>
+<line x1="108.00" y1="468.33" x2="1015.00" y2="468.33" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="473.33" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">10</text>
+<line x1="108.00" y1="410.00" x2="1015.00" y2="410.00" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90.00" y="415.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="end">100</text>
+<circle cx="145.00" cy="427.99" r="6" stroke="#0f766e" stroke-width="3" fill="#0f766e"/>
+<text x="145.00" y="413.99" fill="#0f766e" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">49.165</text>
+<line x1="145.00" y1="427.99" x2="353.00" y2="532.05" stroke="#0f766e" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="353.00" cy="532.05" r="6" stroke="#0f766e" stroke-width="3" fill="#f8fafc"/>
+<text x="353.00" y="518.05" fill="#0f766e" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">0.809</text>
+<line x1="353.00" y1="532.05" x2="561.00" y2="537.00" stroke="#0f766e" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="561.00" cy="537.00" r="6" stroke="#0f766e" stroke-width="3" fill="#0f766e"/>
+<text x="561.00" y="523.00" fill="#0f766e" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">0.665</text>
+<line x1="561.00" y1="537.00" x2="769.00" y2="550.34" stroke="#0f766e" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="769.00" cy="550.34" r="6" stroke="#0f766e" stroke-width="3" fill="#0f766e"/>
+<text x="769.00" y="536.34" fill="#0f766e" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">0.393</text>
+<line x1="769.00" y1="550.34" x2="977.00" y2="549.45" stroke="#0f766e" stroke-width="2" stroke-dasharray="6 5"/>
+<circle cx="977.00" cy="549.45" r="6" stroke="#0f766e" stroke-width="3" fill="#0f766e"/>
+<text x="977.00" y="535.45" fill="#0f766e" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">0.407</text>
+<text x="145.00" y="635.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">Locked reference</text>
+<text x="145.00" y="659.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">n=10 · 3 warmups</text>
+<text x="145.00" y="683.00" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="middle">Clock not recorded</text>
+<text x="353.00" y="635.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">Cached streaming</text>
+<text x="353.00" y="659.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">n=3 · 1 warmups</text>
+<text x="353.00" y="683.00" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="middle">Clock not recorded</text>
+<text x="561.00" y="635.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">MPS + SDPA</text>
+<text x="561.00" y="659.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">n=30 · 3 warmups</text>
+<text x="561.00" y="683.00" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="middle">Sep 05 · 00:31 UTC*</text>
+<text x="769.00" y="635.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">MLX int8 producer</text>
+<text x="769.00" y="659.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">n=30 · 3 warmups</text>
+<text x="769.00" y="683.00" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="middle">Sep 05 · 06:56 UTC</text>
+<text x="977.00" y="635.00" fill="#0f172a" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">MLX int8 HTTPS</text>
+<text x="977.00" y="659.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="middle">n=30 · 3 warmups</text>
+<text x="977.00" y="683.00" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="middle">Sep 05 · 09:13 UTC</text>
+<text x="38.00" y="727.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="start">Milestones in implementation order; horizontal spacing is not elapsed time. Open point = small n=3 screen.</text>
+<text x="38.00" y="752.00" fill="#334155" font-family="Arial, sans-serif" font-size="16" text-anchor="start">Reference buffers the utterance; later runs stream. Inputs, outputs, RNG and transport vary. First PCM ≠ speaker onset.</text>
+<text x="38.00" y="775.00" fill="#334155" font-family="Arial, sans-serif" font-size="14" text-anchor="start">* SDPA timestamp is receipt recorded_at; MLX timestamps are run starts. Source rows + hashes: benchmarks/breeze/measurements.json</text>
+</svg>

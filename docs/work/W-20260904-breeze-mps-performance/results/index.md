@@ -1,5 +1,12 @@
 # Results
 
+- [README commit scope verification](R-138.md) - Exact held hashes,11 fixtures and private-artifact/fork exclusion before publication.
+
+- [Performance chart publication review](R-137.md) -397 rows/18 receipt hashes,280 weight records and all chart claims independently verified.
+
+- [Recorded benchmark comparison audit](R-135.md) - Raw milestone/precision/HTTPS/startup selection and comparison limits.
+- [Inference specification audit](R-136.md) - Hybrid execution, selected-weight bytes and actual codec source verified.
+
 - [Fast manual launch compatibility](R-134.md) - Existing alias and endpoint support the authorized manual conversation run.
 
 - [Mobile radio and recovery review](R-132.md) -15 CPU fixtures, corrected full-response deadlines and truthful storage copy.
